@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import '../global.css'
 
 let PalletPromise = null;
 
@@ -25,23 +26,26 @@ export default function Page() {
             const action = mixer.clipAction( gltf.animations[0] );
             action.play();
   
-            gltf.scene.updateWorldMatrix( true, true );
-            const box3 = new THREE.Box3();
+            //gltf.scene.updateWorldMatrix( true, true );
+            //const box3 = new THREE.Box3();
             //box3.setFromObject( gltf.scene, true );
-            gltf.scene.traverse( object => {
-              if ( object.isMesh ) {
-                for ( let i = 0; i < object.geometry.getAttribute( 'position' ).count; i++ ) {
-                  const p = new THREE.Vector3();
-                  object.getVertexPosition( i, p );
-                  box3.expandByPoint( p );
-                }
-              }
-            } );
-            const box3Helper = new THREE.Box3Helper( box3, 0x00ff00 );
-            pallet._module.sceneGraph.add( box3Helper );
+            // gltf.scene.traverse( object => {
+            //   if ( object.isMesh ) {
+            //     for ( let i = 0; i < object.geometry.getAttribute( 'position' ).count; i++ ) {
+            //       const p = new THREE.Vector3();
+            //       object.getVertexPosition( i, p );
+            //       box3.expandByPoint( p );
+            //     }
+            //   }
+            // } );
+            // const box3Helper = new THREE.Box3Helper( box3, 0x00ff00 );
+            //pallet._module.sceneGraph.add( box3Helper );
+            gltf.scene.userData.mixer = mixer;
+            gltf.scene.userData.action = action;
+            
             pallet._module.addUpdator( ( dt ) => {
-              box3Helper.box.makeEmpty();
-              box3Helper.box.setFromObject( gltf.scene, true );
+              //box3Helper.box.makeEmpty();
+              //box3Helper.box.setFromObject( gltf.scene, true );
               mixer.update( dt );
             } )
           } )
@@ -57,8 +61,10 @@ export default function Page() {
     }
 
 
-    return <div style={styleText}><div>
-    <canvas style={styleText} className="view"></canvas>
-    </div>    
-    </div>
+    return (
+    <div style={styleText}>
+      <div>
+        <canvas style={styleText} className="view"></canvas>
+      </div>
+    </div> );
 }

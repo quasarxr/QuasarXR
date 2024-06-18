@@ -1,12 +1,20 @@
 import * as THREE from 'three';
-import * as dat from 'dat.gui';
+import GUI from 'lil-gui';
+import { Controller } from 'lil-gui';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
+import { SelectionBox } from 'three/examples/jsm/interactive/SelectionBox';
+import { SelectionHelper } from 'three/examples/jsm/interactive/SelectionHelper';
+import { ImageUtils } from 'three/src/extras/ImageUtils';
 
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
+let _defaultCube : THREE.Mesh;
 
 // replace extension functions
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -14,6 +22,7 @@ THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 enum PowerPreference { HighPerformance = "high-performance", LowPower = "low-power", Default = "default" };
+enum MouseEvent { Left = 0, Wheel = 1, Right = 2 };
 
 function findParentByType( object , type ) {
     if (object.parent instanceof type ) {
@@ -49,8 +58,10 @@ export class Command {
 
 class InteractionController {
     raycaster : THREE.Raycaster;
+    
     constructor( option : Object ) {
         this.raycaster = new THREE.Raycaster();
+        this.raycaster.params.Line.threshold = 0;
     }    
     drawHelper() {}
     connectEvent() {}
@@ -64,44 +75,276 @@ class InteractionController {
 
 class DesktopIRC extends InteractionController {
     controls : TransformControls;
+    context : THREE.Object3D;
+    contextGUI : HTMLElement;
+    hitPoint : THREE.Vector3;
+    selectionBox : SelectionBox;
+    selectionHelper : SelectionHelper;
+    keyStatus : {};
+    shiftPressed : boolean;
+    cursorStart : THREE.Vector2;
+    cursorEnd : THREE.Vector2;
+    materialFolder : GUI;
+    textureButton : Controller;
+    targetMaterial : THREE.Material;
 
     constructor() {
         super({});
+        this.hitPoint = new THREE.Vector3();
+        this.selectionBox = new SelectionBox();
+        this.selectionHelper = new SelectionHelper( Renderer.Get(), 'selectBox' );
+        this.selectionHelper.element.classList.add('disabled');
+        this.shiftPressed = false;
+        this.materialFolder = undefined;
+        this.textureButton = undefined;
+        this.targetMaterial = null;
+
+        this.cursorStart = new THREE.Vector2();
+        this.cursorEnd = new THREE.Vector2();
     }
 
-    drawHelper() {
+    drawGhost() {
 
     }
 
     connectEvent() {
-        document.addEventListener( 'mousedown', event => {
-            if ( this.controls.axis ) return
-            this.raycaster.setFromCamera( this.getViewportPos( event.clientX, event.clientY ), _module.camera );
-            const hits = this.raycaster.intersectObject( _module.sceneGraph, true );
-            this.onIntersection( hits );
+        document.addEventListener( 'mousedown', event => {            
+            this.cursorStart.set( event.clientX, event.clientY );
+            if ( this.shiftPressed ) {
+                _module.controller.enabled = false;
+                this.selectionHelper.element.classList.remove('disabled');
+
+                this.selectionBox.startPoint.set(
+                    ( event.clientX / window.innerWidth ) * 2 - 1,
+                    - ( event.clientY / window.innerHeight ) * 2 + 1,
+                    0.5
+                );
+            }
+        } );
+
+        // dragging handler
+        document.addEventListener( 'mousemove', event => {
+            if ( this.shiftPressed ) {
+                this.selectionBox.endPoint.set(
+                    ( event.clientX / window.innerWidth ) * 2 - 1,
+                    - ( event.clientY / window.innerHeight ) * 2 + 1,
+                    0.5
+                );
+            }
+        } );
+
+        // button release handler
+        document.addEventListener( 'mouseup', event => {
+            console.log( event );
+            this.cursorEnd.set( event.clientX, event.clientY );
+            const isCanvasEvent = event.target === Renderer.Canvas();
+            const isDragging = this.cursorStart.distanceTo( this.cursorEnd ) > 0.01;
+            const eventStates = { drag: isDragging, canvasEvent: isCanvasEvent };
+            _module.controller.enabled = true;
+            this.selectionHelper.element.classList.add('disabled');
+            this.disableContextGUI();
+
+            if ( this.shiftPressed ) {
+                this.selectionBox.endPoint.set(
+                    ( event.clientX / window.innerWidth ) * 2 - 1,
+                    - ( event.clientY / window.innerHeight ) * 2 + 1,
+                    0.5
+                );
+            } else {
+                switch( event.button ) {
+                    case MouseEvent.Left:
+                        this.onLeftClick( this.cursorEnd, eventStates );
+                        break;
+                    case MouseEvent.Right:
+                        this.onRightClick( this.cursorEnd, eventStates );
+                        break;
+                    case MouseEvent.Wheel:
+                        this.onWheelClick( this.cursorEnd, eventStates );
+                        break;
+                }
+            }
+        } );
+
+        document.addEventListener( 'keydown', event => {
+            switch( event.code ) {
+                case 'ControlLeft':
+                    break;
+                case 'AltLeft':
+                    break;
+                case 'Tab':
+                    break;
+                case 'ShiftLeft':
+                    this.shiftPressed = true;
+                    break;
+                case 'KeyQ':
+                    console.log( this.controls.space );
+                    this.controls.setSpace( this.controls.space === 'local' ? 'world' : 'local' );
+                    break;
+                case 'KeyW':
+                    this.controls.setMode( 'translate' );
+                    break;
+                case 'KeyE':
+                    this.controls.setMode( 'rotate' );
+                    break;
+                case 'KeyR':
+                    this.controls.setMode( 'scale' );
+            }
+        } );
+
+        document.addEventListener( 'keyup', event => {
+            switch( event.code ) {
+                case 'ControlLeft':
+                    break;
+                case 'AltLeft':
+                    break;
+                case 'Tab':
+                    break;
+                case 'ShiftLeft':
+                    this.shiftPressed = false;
+                    break;
+            }
         } );
     }
-    
-    onIntersection( hits : Array<any> ) {
-        const hitMeshes = hits.filter( h => h.object.isMesh && ! ( findParentByType( h.object, TransformControls ) ) );
 
-        if ( hitMeshes.length > 0 ) {
+    disconnectEvent( option : Object ) {
+
+    }
+
+    onLeftClick( pointer : THREE.Vector2, state ) {
+        if ( this.controls.axis || state.drag || ! state.canvasEvent ) return
+        this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ) , _module.camera );
+        const hits = this.raycaster.intersectObject( _module.sceneGraph );
+        this.onIntersection( hits );
+    }
+
+    onRightClick( pointer : THREE.Vector2, state ) {
+        this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ), _module.camera );
+        const hits = this.raycaster.intersectObject( _module.sceneGraph );
+        if ( state.drag == false )
+            this.onContext( hits, pointer );
+    }
+
+    onWheelClick( pointer : THREE.Vector2, state ) {
+
+    }
+
+    onDragging( pointer : THREE.Vector2 ) {
+
+    }
+
+    onContext( hits : Array<any>, position : THREE.Vector2 ) {
+        const hitMeshes = hits.filter( h => h.object.isMesh && ! ( findParentByType( h.object, TransformControls ) ) );
+        if ( hitMeshes.length > 0 ) { // Some object3D hangs in ray
+            console.log( hitMeshes );
+            //this.controls.enabled = false;
+            const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
+            if ( hitMeshes[0].object.isGround ) {
+                this.enableContextGUI( position, 'add' );
+            } else {
+                this.enableContextGUI( position, 'property' );
+            }
+            if ( group ) {
+                this.context = group;
+            } else {
+                this.context = hitMeshes[ 0 ].object;
+            }
+            this.hitPoint.copy( hitMeshes[0].point );
+        } else { // hangs nothing
+            this.context = null;
+            this.disableContextGUI();
+        }
+    }
+    
+    onIntersection( hits : Array<any> ) {        
+        this.replaceButtonImage( undefined );
+        const hitMeshes = hits.filter( h => h.object.isMesh && ! ( findParentByType( h.object, TransformControls ) ) );
+        console.log( hitMeshes );
+        if ( hitMeshes.length > 0 && !hitMeshes[0].object.isGround ) { // prevents any action to ground
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
+            this.targetMaterial = null;
             if ( group ) {
                 this.controls.attach( group );
+                this.context = group;
             } else {
-                this.controls.attach( hitMeshes[0].object );
+                const pickedObject = hitMeshes[0].object;
+                this.controls.attach( pickedObject );
+                this.context = hitMeshes[0].object;                
+                this.replaceButtonImage( undefined );
+
+                if ( pickedObject.isMesh && pickedObject.material ) {
+                    if ( pickedObject.material.map ) {
+                        const imageToDataURL = (function(img) {
+                            const  imgData = ImageUtils.getDataURL(img);
+                            console.log( this );
+                            this.replaceButtonImage(imgData);
+                          }.bind(this))(pickedObject.material.map.image);
+                    }
+                }
             }
         } else {                
             this.controls.detach();
             this.controls.enabled = false;
+            this.controls.setMode( 'translate' );
+            this.context = null;
         }
     }
 
     createControls( camera, canvas ) : TransformControls {
         this.controls = new TransformControls( camera, canvas );
         return this.controls;
+    }
+
+    enableContextGUI( position : THREE.Vector2, mode : string ) {
+        this.contextGUI.style.visibility = 'visible';
+        if ( position ) {
+            this.contextGUI.style.left = `${position.x}px`;
+            this.contextGUI.style.top = `${position.y}px`;
+        }
+
+        _module.contextGUI.children.forEach( c => {
+            if ( c['_title'].toLowerCase() == mode ) {
+                c.show();
+            } else {
+                c.hide();
+            }
+        } )
+    }
+
+    disableContextGUI() {
+        this.contextGUI.style.visibility = 'hidden';
+    }
+
+    replaceButtonImage( source ) {
+        //const buttonOrigin = imageButton.domElement.children[0].children[0];
+        //button.style.backgroundColor = '#ff0000';
+        //button.style.backgroundImage = `url(/images/temp/apple.jpeg)`;
+        if ( this.textureButton && this.textureButton.domElement ) {
+            // TODO : GUI 참조 얻어오는 방식을 하드코딩 하지 않게 바꾸기
+            const target = 
+                this.textureButton.domElement.children[0].children.length > 1 ? this.textureButton.domElement.children[0].children[1] as HTMLElement :
+                this.textureButton.domElement.children[0].children[0] as HTMLElement;
+            if ( target ) {
+                target.style.backgroundImage = `url("${source}")`;
+                target.style.backgroundSize = 'cover'; // 'cover','contain','initial','inherit'
+                target.style.backgroundRepeat = 'no-repeat';
+                target.style.backgroundPosition = 'center';
+                target.style.width = '100px';
+                target.style.height = '100px';
+                target.style.marginLeft = 'auto';
+                target.textContent = '';
+            }
+        }
+    }
+
+    replaceTexture( texture ) {
+        if ( this.targetMaterial ) {
+            this.targetMaterial.map = texture;
+            this.targetMaterial.needsUpdate = true;
+        } else if ( this.context ) {
+            this.context.material.map = texture;
+            this.context.material.needsUpdate = true;
+        }
     }
 }
 
@@ -144,6 +387,7 @@ export class Scene {
 }
 
 export class Renderer {
+    static composer : EffectComposer = null;
     static renderer : THREE.WebGLRenderer = null;
     static canvas : HTMLCanvasElement = null;
     static option : RenderOptions = { alpha: true } as RenderOptions;
@@ -152,6 +396,13 @@ export class Renderer {
             Renderer.Create( {} as RenderOptions );
         }
         return Renderer.renderer;
+    }
+    
+    static Canvas() {
+        if ( Renderer.renderer ) { 
+            return Renderer.renderer.domElement;
+        }
+        return null;
     }
 
     static Create( opt : RenderOptions ) : THREE.WebGLRenderer {
@@ -171,6 +422,26 @@ class PalletElement extends HTMLElement {
     }
 }
 
+class Utility {
+    constructor() {
+
+    }
+
+    static FileSelector( multiple : boolean = false ) {
+        const f = document.createElement( 'input' );
+        f.setAttribute( 'type', 'file' );
+        f.setAttribute( 'multiple', `${multiple}` );
+        //f.setAttribute( 'accept', accept );
+        //f.addEventListener('change', ( event ) => callback( f ) );
+        f.click();
+        return f;
+    }
+    
+    static FileExtension( path ) {
+
+    }
+}
+
 export class PalletEngine extends PalletElement {
     
     sceneGraph : THREE.Scene;
@@ -183,6 +454,9 @@ export class PalletEngine extends PalletElement {
     updateFunctions : Array<Function>;
     commandQueue : CommandQueue;
     irc : InteractionController;
+    screenGUI : GUI;
+    contextGUI : GUI;
+    contextGUIOuter : HTMLElement;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
@@ -191,20 +465,14 @@ export class PalletEngine extends PalletElement {
         this.directionalLight = new THREE.DirectionalLight( 0xffffff, 10 );
         this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
         this.gltfLoader = new GLTFLoader();
-        this.clock = new THREE.Clock();
-        this.controller = new OrbitControls( this.camera, canvas );
-        this.controller.enableDamping = true;
+        this.clock = new THREE.Clock(); // for debugging, optimization
+        this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
+        this.controller.enableDamping = true; // smooth move to camera
         this.controller.dampingFactor = 0.1;
-        this.updateFunctions = new Array<Function>();
-        this.commandQueue = new CommandQueue();
-        this.irc = new DesktopIRC();
-        this.irc.connectEvent();
-        const transformer = ( this.irc as DesktopIRC ).createControls( this.camera, canvas );
-        this.sceneGraph.add( transformer );
-        transformer.addEventListener( 'dragging-changed', event => {
-            this.controller.enabled = ! event.value;
-        } );
-
+        this.updateFunctions = new Array<Function>(); // 
+        this.commandQueue = new CommandQueue(); // for customize events
+        
+        // create renderer, IRC selectionHelper initialize Issue
         const renderer = Renderer.Create( { antialias: true, canvas: canvas } as RenderOptions );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.setClearColor( 0x3c3c3c );
@@ -219,13 +487,294 @@ export class PalletEngine extends PalletElement {
             renderer.setSize( window.innerWidth, window.innerHeight );
         } )
 
+
+        // interaction setting
+        this.irc = new DesktopIRC();
+        this.irc.connectEvent();
+
+        // user interface
+        this.screenGUI = new GUI( { title : 'Properties' } );
+        this.screenGUI.close();
+        this.contextGUIOuter = document.createElement( 'div' );
+        this.contextGUIOuter.addEventListener( 'mouseup', event => event.stopPropagation() ); // prevent pass event to document
+
+        // below interface refactoring to generic
+        // cast desktop interaction interface
+        const desktopIRC = this.irc as DesktopIRC;
+
+        // link user interface to interaction
+        desktopIRC.contextGUI = this.contextGUIOuter;
+        document.body.appendChild( this.contextGUIOuter );
+
+        // context menu setting
+        this.contextGUI = new GUI( { container : this.contextGUIOuter, title : 'Context' } );
+
+        // create gizmo instance
+        const transformer = desktopIRC.createControls( this.camera, canvas );
+        this.sceneGraph.add( transformer );
+        
+        // prevent viewport dragging during gizmo interaction
+        transformer.addEventListener( 'dragging-changed', event => {
+            this.controller.enabled = ! event.value;
+        } );
+
+        // selection box setting
+        desktopIRC.selectionBox.camera = this.camera;
+        desktopIRC.selectionBox.scene = this.sceneGraph;
+
+        window.addEventListener( 'contextmenu', event => event.preventDefault() );
+
         this.createScene();
+        this.createGUI();
+    }
+
+    createGUI() {
+        // main menu
+        const system = this.screenGUI.addFolder( "System" );
+        const systemProp = { 
+            Add: function() {
+
+            },
+            Import: function() {
+                const f = Utility.FileSelector();
+                f.addEventListener( "change", () => {
+                    // now only use glb loader
+                    const url = URL.createObjectURL( f.files[0] );
+                    _module.gltfLoader.load( url, gltf => {
+                        _module.sceneGraph.add( gltf.scene );
+                    } );
+                } );
+            }
+        };
+        system.add( systemProp, "Import" );
+        const transformFolder = this.screenGUI.addFolder( 'Transform' );
+        transformFolder.close();
+
+        const positionFolder = transformFolder.addFolder( 'Position' );
+        positionFolder.close();
+        const posProp = { X: 0, Y: 0, Z: 0, };
+        const updatePosition = value => {
+            if ( localIRC.context ) {
+                localIRC.context.position.set( posProp.X, posProp.Y, posProp.Z );
+            }
+        }
+        positionFolder.add( posProp, 'X' ).listen().onChange( updatePosition );
+        positionFolder.add( posProp, 'Y' ).listen().onChange( updatePosition );
+        positionFolder.add( posProp, 'Z' ).listen().onChange( updatePosition );
+
+        const eulerFolder = transformFolder.addFolder( 'Rotation' );
+        eulerFolder.close();
+        const eulerProp = { X: 0, Y: 0, Z: 0, };
+        const updateEuler = value => {
+            if ( localIRC.context ) {
+                localIRC.context.rotation.set( eulerProp.X, eulerProp.Y, eulerProp.Z );
+            }
+        }
+        eulerFolder.add( eulerProp, 'X' ).listen().onChange( updateEuler );
+        eulerFolder.add( eulerProp, 'Y' ).listen().onChange( updateEuler );
+        eulerFolder.add( eulerProp, 'Z' ).listen().onChange( updateEuler );
+
+        const scaleFolder = transformFolder.addFolder( 'Scale' );
+        scaleFolder.close();
+        const scaleProp = { X: 1, Y: 1, Z: 1, };
+        const updateScale = value => {
+            if ( localIRC.context ) {
+                localIRC.context.scale.set( scaleProp.X, scaleProp.Y, scaleProp.Z );
+            }
+        }
+        scaleFolder.add( scaleProp, 'X' ).listen().onChange( updateScale );
+        scaleFolder.add( scaleProp, 'Y' ).listen().onChange( updateScale );
+        scaleFolder.add( scaleProp, 'Z' ).listen().onChange( updateScale );
+
+        const materialFolder = this.screenGUI.addFolder( "Material" );
+        const materialProp = {
+            Color: 0xffffff,
+            Map: () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.style.display = 'none';
+                input.onchange = (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    const reader = new FileReader();
+                    reader.onload = event => {
+                    const loader = new THREE.TextureLoader();
+                    loader.load(event.target.result, texture => {
+                        console.log( localIRC.context );
+                        localIRC.replaceTexture( texture );
+                        //target.material.map = texture;
+                    });
+                    localIRC.replaceButtonImage( event.target.result );
+                    };
+                    reader.readAsDataURL(input.files[0]);
+                };
+                input.click();
+
+            },
+            NormalMap: () => {},
+            SpecularMap: () => {},
+
+        };
+
+        const updateColor = value => {
+            if ( localIRC.targetMaterial ) {
+                localIRC.targetMaterial.color.setHex( value );
+            } else if ( localIRC.context && localIRC.context.isMesh && localIRC.context.material.color ) {
+                localIRC.context.material.color.setHex( value );
+            }
+        }
+
+        materialFolder.addColor( materialProp, 'Color' ).listen().onChange( updateColor );
+        const textureButton = materialFolder.add( materialProp, 'Map' );
+        const localIRC = this.irc as DesktopIRC;
+        localIRC.textureButton = textureButton;
+        localIRC.replaceButtonImage(undefined);
+
+        const target = localIRC.textureButton.domElement.children[0].children[0] as HTMLElement;
+        const div = document.createElement('div');
+        div.textContent = 'Map';
+        target.parentElement.insertBefore( div, target );
+
+        const meshFolder = this.screenGUI.addFolder( "Meshes" );
+        console.log( meshFolder );
+        let prevUUID = "";
+
+        // ui update function
+        this.updateFunctions.push( ( delta ) => {
+            const obj = localIRC.context;
+            if ( obj ) {
+                posProp.X = obj.position.x;
+                posProp.Y = obj.position.y;
+                posProp.Z = obj.position.z;
+
+                eulerProp.X = obj.rotation.x;
+                eulerProp.Y = obj.rotation.y;
+                eulerProp.Z = obj.rotation.z;
+
+                scaleProp.X = obj.scale.x;
+                scaleProp.Y = obj.scale.y;
+                scaleProp.Z = obj.scale.z;
+
+                if ( obj.isMesh && obj.material ) {
+                    if ( obj.material.color )
+                        materialProp.Color = obj.material.color.getHex();
+                    else
+                        materialProp.Color = 0xffffff;
+                }
+
+                // update mesh
+                if ( obj.uuid === prevUUID ) {
+                    // do not update 
+                } else {        
+                    // update local uuid
+                    prevUUID = obj.uuid;
+                    const meshProps = {};
+
+                    if ( obj.isGroup ) {
+                        obj.traverse( child => {
+                            if ( child.isMesh ) {
+                                meshProps[child.name] = () => {
+                                    if ( child.material.map ) {
+                                        const imageToDataURL = (function(img) {
+                                            const  imgData = ImageUtils.getDataURL(img);
+                                            localIRC.targetMaterial = child.material;
+                                            materialProp.Color = child.material.color.getHexString();
+                                            localIRC.replaceButtonImage(imgData);
+                                          }.bind(this))(child.material.map.image);
+                                    }
+                                };
+                                meshFolder.add( meshProps, `${child.name}`);
+                            }
+                        } )
+                    } /*else if ( obj.isMesh ) {
+                    }*/
+                }
+
+            } else {
+                // set default
+                posProp.X = 0;
+                posProp.Y = 0;
+                posProp.Z = 0;
+
+                eulerProp.X = 0;
+                eulerProp.Y = 0;
+                eulerProp.Z = 0;
+
+                scaleProp.X = 1;
+                scaleProp.Y = 1;
+                scaleProp.Z = 1;
+
+                materialProp.Color = 0xffffff;
+                
+                meshFolder.controllers.forEach( cont => cont.destroy() );
+
+                prevUUID = "";
+            }
+        } );
+
+        // const shape = this.screenGUI.addFolder( "Shapes" );
+        // const shapeProp = {
+
+        // }
+
+        // context menu
+        // assign custom style
+        this.contextGUIOuter.style.cssText = 'position: absolute; left: 0px; top: 0px; visibility: hidden;';
+
+        const animationProps = { frame : 0 };
+
+        const propertyFolder = this.contextGUI.addFolder( 'Property' );
+        propertyFolder.hide();
+        
+
+        const creationParam = {
+            Box: () => {
+                localIRC.disableContextGUI(); // refactoring
+                const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+                const material = new THREE.MeshBasicMaterial();
+                const box = new THREE.Mesh( geometry, material );
+                box.position.copy( localIRC.hitPoint );
+                this.sceneGraph.add( box );
+            },
+            Sphere: () => {
+                localIRC.disableContextGUI(); // refactoring
+                const geometry = new THREE.SphereGeometry( 0.8, 30, 15 );
+                const material = new THREE.MeshBasicMaterial();
+                const sphere = new THREE.Mesh( geometry, material );
+                sphere.position.copy( localIRC.hitPoint );
+                this.sceneGraph.add( sphere );
+            },
+            Plane: () => {
+                localIRC.disableContextGUI(); // refactoring
+                const geometry = new THREE.PlaneGeometry( 1, 1, 1 );
+                const material = new THREE.MeshBasicMaterial();
+                const plane = new THREE.Mesh( geometry, material );
+                plane.position.copy( localIRC.hitPoint );
+                this.sceneGraph.add( plane );
+            },
+            GLB: () => {
+                localIRC.disableContextGUI(); // refactoring
+            }
+        }
+
+        const create = this.contextGUI.addFolder( 'Add' );
+        create.add( creationParam, 'Box' );
+        create.add( creationParam, 'Sphere' );
+        create.add( creationParam, 'Plane' );
+        create.add( creationParam, 'GLB' );
+        console.log( this.contextGUI );
     }
 
     createScene() {
         const gridHelper : THREE.GridHelper = new THREE.GridHelper( 50, 50, 0x7c7c7c, 0x5f5f5f );
-        this.camera.position.set( 0, 0, 5 );
+        const gridPlane : THREE.Mesh = new THREE.Mesh( new THREE.PlaneGeometry( 50, 50, 10, 10 ), new THREE.MeshBasicMaterial( { transparent : true, opacity: 0.1, color: 0x576076 } ) );
+        gridPlane.name = 'GridPlane';
+        gridPlane.isGround = true;
+        gridPlane.rotation.set( -1.57, 0, 0 );
+        this.camera.position.set( 0, 5, 5 );
         this.sceneGraph.add( gridHelper );
+        this.sceneGraph.add( gridPlane );
         this.sceneGraph.add( this.directionalLight );
         this.sceneGraph.add( this.ambientLight );
 
@@ -233,11 +782,16 @@ export class PalletEngine extends PalletElement {
 
         const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
         this.sceneGraph.add( cube );
+        _defaultCube = cube;
 
         this.updateFunctions.push( ( delta ) => { 
             cube.rotation.x += 0.01;
             cube.rotation.y += 0.01;
         } )
+    }
+
+    clearScene() {
+
     }
 
     createEnvironment() {
@@ -272,10 +826,10 @@ customElements.define( 'pallet-element', PalletElement );
 customElements.define( 'pallet-engine', PalletEngine );
 
 
-let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas' );
+let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
+console.log( canvasElements );
 export let _module : PalletEngine;
 
 if ( canvasElements.length > 0 ) {
-    const canvas = canvasElements[ 0 ];
-    _module = new PalletEngine( canvas );
+    _module = new PalletEngine( canvasElements[ 0 ] );
 }
