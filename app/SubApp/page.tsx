@@ -42,13 +42,12 @@ export default function Page() {
             //pallet._module.sceneGraph.add( box3Helper );
             gltf.scene.userData.mixer = mixer;
             gltf.scene.userData.action = action;
-            
-            pallet._module.addUpdator( ( dt ) => {
+            gltf.scene.userData.updator = pallet._module.addUpdator( dt => {
               //box3Helper.box.makeEmpty();
               //box3Helper.box.setFromObject( gltf.scene, true );
               mixer.update( dt );
-            } )
-          } )
+            }  );            
+          } );
         } )
       }
 

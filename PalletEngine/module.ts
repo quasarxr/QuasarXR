@@ -3,7 +3,7 @@ import GUI from 'lil-gui';
 import { Controller } from 'lil-gui';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
+import { TransformControls, TransformControlsGizmo } from 'three/examples/jsm/controls/TransformControls';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
@@ -15,6 +15,9 @@ import { ImageUtils } from 'three/src/extras/ImageUtils';
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
 let _defaultCube : THREE.Mesh;
+let _version = { major: 0, minor: 1, patch: 0, get : () => `Pallet v.${_version.major}.${_version.minor}.${_version.patch}` };
+let _product = { name : 'Pallet' }
+console.log( _version.get() );
 
 // replace extension functions
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -48,6 +51,11 @@ export type RenderOptions = {
     powerPreference : PowerPreference
 }
 
+export type Updator = {
+    func : (dt : number) => void,
+    enabled : boolean
+}
+
 export class Command {
     command : string;
     parameter : string;
@@ -73,6 +81,8 @@ class InteractionController {
     }
 }
 
+// TODO : THREE.OrbitControls combine in this class or customize it.
+// the box selection has bug from key, mouse event when window focus changed
 class DesktopIRC extends InteractionController {
     controls : TransformControls;
     context : THREE.Object3D;
@@ -135,7 +145,6 @@ class DesktopIRC extends InteractionController {
 
         // button release handler
         document.addEventListener( 'mouseup', event => {
-            console.log( event );
             this.cursorEnd.set( event.clientX, event.clientY );
             const isCanvasEvent = event.target === Renderer.Canvas();
             const isDragging = this.cursorStart.distanceTo( this.cursorEnd ) > 0.01;
@@ -150,6 +159,16 @@ class DesktopIRC extends InteractionController {
                     - ( event.clientY / window.innerHeight ) * 2 + 1,
                     0.5
                 );
+                this.selectionBox.select();
+                const filteredSelection = this.selectionBox.collection.filter( object => {
+                    const isGizmo = findParentByType( object, TransformControlsGizmo );
+                    const isGizmoPlane = object.isTransformControlsPlane;
+                    const isGround = object.isGround;
+                    const isLine = object.isLine || object.isLineSegment;
+                    if ( isGizmo || isGround || isLine || isGizmoPlane ) return false
+                    else return true;
+                } )
+                console.log( filteredSelection );
             } else {
                 switch( event.button ) {
                     case MouseEvent.Left:
@@ -451,7 +470,7 @@ export class PalletEngine extends PalletElement {
     gltfLoader : GLTFLoader;
     clock : THREE.Clock;
     controller : OrbitControls;
-    updateFunctions : Array<Function>;
+    updateFunctions : Array<Updator>;
     commandQueue : CommandQueue;
     irc : InteractionController;
     screenGUI : GUI;
@@ -469,7 +488,7 @@ export class PalletEngine extends PalletElement {
         this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
         this.controller.enableDamping = true; // smooth move to camera
         this.controller.dampingFactor = 0.1;
-        this.updateFunctions = new Array<Function>(); // 
+        this.updateFunctions = new Array<Updator>(); // 
         this.commandQueue = new CommandQueue(); // for customize events
         
         // create renderer, IRC selectionHelper initialize Issue
@@ -547,9 +566,11 @@ export class PalletEngine extends PalletElement {
             }
         };
         system.add( systemProp, "Import" );
+
+        //transform
         const transformFolder = this.screenGUI.addFolder( 'Transform' );
         transformFolder.close();
-
+    
         const positionFolder = transformFolder.addFolder( 'Position' );
         positionFolder.close();
         const posProp = { X: 0, Y: 0, Z: 0, };
@@ -586,6 +607,7 @@ export class PalletEngine extends PalletElement {
         scaleFolder.add( scaleProp, 'Y' ).listen().onChange( updateScale );
         scaleFolder.add( scaleProp, 'Z' ).listen().onChange( updateScale );
 
+        // material
         const materialFolder = this.screenGUI.addFolder( "Material" );
         const materialProp = {
             Color: 0xffffff,
@@ -636,13 +658,53 @@ export class PalletEngine extends PalletElement {
         div.textContent = 'Map';
         target.parentElement.insertBefore( div, target );
 
+        // mesh information
         const meshFolder = this.screenGUI.addFolder( "Meshes" );
-        console.log( meshFolder );
+
+        // etc properties
+        const etcFolder = this.screenGUI.addFolder( "Etc" );
+        const etcProp = {
+            Animation: true,
+            Loop: true,
+            Reset: () => { localIRC.context.userData.action.time = 0 },
+            Updator: true
+        };
+
+        const animPause = etcFolder.add( etcProp, "Animation" ).listen().onChange( value => { 
+            if ( value ) localIRC.context.userData.action.paused = false;
+            else localIRC.context.userData.action.paused = true;
+        } );
+
+        const animLoop = etcFolder.add( etcProp, "Loop" ).listen().onChange( value => {
+            if ( value ) {
+                localIRC.context.userData.action.setLoop( THREE.LoopRepeat, Infinity );
+                localIRC.context.userData.action.reset();
+            } else
+                localIRC.context.userData.action.setLoop( THREE.LoopOnce );
+        } );
+
+        etcFolder.add( etcProp, "Reset" );
+        const updateController = etcFolder.add( etcProp, "Updator" ).listen().onChange( value => { localIRC.context.userData.updator.enabled = value } );
+
         let prevUUID = "";
 
+        const clearFolder = ( folder ) => {            
+            const length = folder.controllers.length;
+            const temp = folder.controllers;
+            
+            folder.children = [];
+            folder.controllers = [];
+
+            for( let i = 0; i < length ; ++i ) {
+                temp[i].hide();
+                temp[i].destroy();
+            }
+        }
+
         // ui update function
-        this.updateFunctions.push( ( delta ) => {
+        this.addUpdator( ( delta ) => {
             const obj = localIRC.context;
+
             if ( obj ) {
                 posProp.X = obj.position.x;
                 posProp.Y = obj.position.y;
@@ -655,6 +717,29 @@ export class PalletEngine extends PalletElement {
                 scaleProp.X = obj.scale.x;
                 scaleProp.Y = obj.scale.y;
                 scaleProp.Z = obj.scale.z;
+                
+                if ( obj.userData.mixer ) {
+                    animPause.enable();
+                    animLoop.enable();
+
+                    if ( obj.userData.action.paused ) {
+                        animLoop.setValue( obj.userData.action.paused === THREE.LoopRepeat );
+                    }
+
+                    if ( obj.userData.action.loop === THREE.LoopRepeat )
+                        animLoop.setValue( true );
+                    else
+                        animLoop.setValue( false );
+                }
+                else{
+                    animPause.disable();
+                    animLoop.disable();
+                }
+
+                if ( obj.userData.updator ) {
+                    updateController.enable();
+                    updateController.setValue( obj.userData.updator.enabled );
+                } else updateController.disable();
 
                 if ( obj.isMesh && obj.material ) {
                     if ( obj.material.color )
@@ -670,6 +755,8 @@ export class PalletEngine extends PalletElement {
                     // update local uuid
                     prevUUID = obj.uuid;
                     const meshProps = {};
+
+                    clearFolder( meshFolder );
 
                     if ( obj.isGroup ) {
                         obj.traverse( child => {
@@ -687,8 +774,7 @@ export class PalletEngine extends PalletElement {
                                 meshFolder.add( meshProps, `${child.name}`);
                             }
                         } )
-                    } /*else if ( obj.isMesh ) {
-                    }*/
+                    }
                 }
 
             } else {
@@ -707,7 +793,11 @@ export class PalletEngine extends PalletElement {
 
                 materialProp.Color = 0xffffff;
                 
-                meshFolder.controllers.forEach( cont => cont.destroy() );
+                clearFolder( meshFolder );
+
+                animPause.disable();
+                animLoop.disable();
+                updateController.disable();
 
                 prevUUID = "";
             }
@@ -783,11 +873,10 @@ export class PalletEngine extends PalletElement {
         const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
         this.sceneGraph.add( cube );
         _defaultCube = cube;
-
-        this.updateFunctions.push( ( delta ) => { 
+        _defaultCube.userData.updator = this.addUpdator( ( delta ) => { 
             cube.rotation.x += 0.01;
             cube.rotation.y += 0.01;
-        } )
+        } );
     }
 
     clearScene() {
@@ -806,15 +895,17 @@ export class PalletEngine extends PalletElement {
     }
 
     update( dt : Number ) {
-        this.updateFunctions.map( func => func( dt ) );
+        this.updateFunctions.map( updator => { if ( updator.enabled ) updator.func( dt ) } );
         this.commandQueue.update();
 
         this.controller.update();
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
 
-    addUpdator( func : Function ) {
-        this.updateFunctions.push( func );
+    addUpdator( func : (dt : number) => void, enabled : boolean = true ) {
+        let updator : Updator = { func : func, enabled : enabled }
+        this.updateFunctions.push( updator );
+        return updator;
     }
 
     appendCommand() {
