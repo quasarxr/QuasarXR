@@ -25,6 +25,14 @@ export default function Page() {
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
             action.play();
+
+            gltf.scene.traverse( object => {
+              if ( object.isMesh ) {
+                console.log( object );
+                object.castShadow = true;
+                object.receiveShadow = true;
+              }
+            } );
   
             //gltf.scene.updateWorldMatrix( true, true );
             //const box3 = new THREE.Box3();

@@ -12,6 +12,10 @@ import { SelectionBox } from 'three/examples/jsm/interactive/SelectionBox';
 import { SelectionHelper } from 'three/examples/jsm/interactive/SelectionHelper';
 import { ImageUtils } from 'three/src/extras/ImageUtils';
 
+// shadow
+import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader';
+import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader';
+
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
 let _defaultCube : THREE.Mesh;
@@ -122,6 +126,7 @@ class DesktopIRC extends InteractionController {
             this.cursorStart.set( event.clientX, event.clientY );
             if ( this.shiftPressed ) {
                 _module.controller.enabled = false;
+                this.selectionHelper.enabled = true;
                 this.selectionHelper.element.classList.remove('disabled');
 
                 this.selectionBox.startPoint.set(
@@ -129,7 +134,7 @@ class DesktopIRC extends InteractionController {
                     - ( event.clientY / window.innerHeight ) * 2 + 1,
                     0.5
                 );
-            }
+            } else this.selectionHelper.enabled = false;
         } );
 
         // dragging handler
@@ -476,13 +481,24 @@ export class PalletEngine extends PalletElement {
     screenGUI : GUI;
     contextGUI : GUI;
     contextGUIOuter : HTMLElement;
+
+    // shader
+    shadowGroup : THREE.Group;
+    shaderState : any;
+    renderTarget : THREE.WebGLRenderTarget;
+    renderTargetBlur : THREE.WebGLRenderTarget;
+    shadowCamera : THREE.OrthographicCamera;
+    shadowCameraHelper : THREE.CameraHelper;
+    shadowPlane : THREE.Mesh;
+    shadowBlurPlane : THREE.Mesh;
+    depthMaterial : THREE.MeshDepthMaterial;
+    horizontalBlurMaterial : THREE.ShaderMaterial;
+    verticalBlurMaterial = THREE.ShaderMaterial;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
         this.sceneGraph = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-        this.directionalLight = new THREE.DirectionalLight( 0xffffff, 10 );
-        this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
         this.gltfLoader = new GLTFLoader();
         this.clock = new THREE.Clock(); // for debugging, optimization
         this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
@@ -495,6 +511,8 @@ export class PalletEngine extends PalletElement {
         const renderer = Renderer.Create( { antialias: true, canvas: canvas } as RenderOptions );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.setClearColor( 0x3c3c3c );
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.setAnimationLoop( () => {
             const dt = this.clock.getDelta();
             this.update( dt );
@@ -542,6 +560,67 @@ export class PalletEngine extends PalletElement {
         desktopIRC.selectionBox.scene = this.sceneGraph;
 
         window.addEventListener( 'contextmenu', event => event.preventDefault() );
+
+        // shadow 
+        this.shaderState = {
+            shadow : {
+                blur: 0.2,
+                darkness: 5,
+                opacity: 1,
+            },
+            plane: {
+                color: '#ffffff',
+                opacity: 1,
+            },
+            showWireframe: false,
+        };
+
+        this.shadowGroup = new THREE.Group();
+        this.sceneGraph.add( this.shadowGroup );
+
+        this.renderTarget = new THREE.WebGLRenderTarget( 1024, 1024 );
+        this.renderTarget.generateMipmaps = false;
+
+        this.renderTargetBlur = new THREE.WebGLRenderTarget( 1024, 1024 );
+        this.renderTargetBlur.generateMipmaps = false;
+
+        const planeGeometry = new THREE.PlaneGeometry( 50, 50 ).rotateX( Math.PI / 2 );
+        const planeMaterial = new THREE.MeshBasicMaterial( { map : this.renderTarget.texture , opacity: 1, transparent: true, depthWrite: false } );
+        this.shadowPlane = new THREE.Mesh( planeGeometry, planeMaterial );
+        this.shadowPlane.scale.y = -1;
+        this.shadowPlane.position.set( 0, 0.1, 0 );
+        this.shadowPlane.renderOrder = 1;
+        this.shadowGroup.add( this.shadowPlane );
+        
+        this.shadowBlurPlane = new THREE.Mesh( planeGeometry );
+        this.shadowBlurPlane.visible = false;
+        this.shadowGroup.add( this.shadowBlurPlane );
+
+        this.shadowCamera = new THREE.OrthographicCamera( -50 / 2, 50 / 2, 50 / 2, - 50 / 2, 0, 10 );
+        this.shadowCamera.rotation.x = Math.PI / 2;
+        this.shadowGroup.add( this.shadowCamera );
+
+        this.shadowCameraHelper = new THREE.CameraHelper( this.shadowCamera );
+        this.shadowGroup.add( this.shadowCameraHelper );
+
+        this.depthMaterial = new THREE.MeshDepthMaterial();
+        this.depthMaterial.userData.darkness = { value: this.shaderState.shadow.darkness };
+        this.depthMaterial.onBeforeCompile = function( shader ) {
+            shader.uniforms.darkness = this.depthMaterial.userData.darkness;
+            shader.fragmentShader = /*glsl*/`
+                uniform float darkness;
+                ${shader.fragmentShader.replace('gl_FragColor = vec4( vec3( 1.0 - fragCoordZ ), opacity );',
+					'gl_FragColor = vec4( vec3( 0.0 ), ( 1.0 - fragCoordZ ) * darkness );')}
+            `;
+        }.bind(this);
+        this.depthMaterial.depthTest = false;
+        this.depthMaterial.depthWrite = false;
+
+        this.horizontalBlurMaterial = new THREE.ShaderMaterial( HorizontalBlurShader );
+        this.horizontalBlurMaterial.depthTest = false;
+
+        this.verticalBlurMaterial = new THREE.ShaderMaterial( VerticalBlurShader );
+        this.verticalBlurMaterial.depthTest = false;
 
         this.createScene();
         this.createGUI();
@@ -645,7 +724,7 @@ export class PalletEngine extends PalletElement {
             } else if ( localIRC.context && localIRC.context.isMesh && localIRC.context.material.color ) {
                 localIRC.context.material.color.setHex( value );
             }
-        }
+        };
 
         materialFolder.addColor( materialProp, 'Color' ).listen().onChange( updateColor );
         const textureButton = materialFolder.add( materialProp, 'Map' );
@@ -683,7 +762,7 @@ export class PalletEngine extends PalletElement {
                 localIRC.context.userData.action.setLoop( THREE.LoopOnce );
         } );
 
-        etcFolder.add( etcProp, "Reset" );
+        const resetButton = etcFolder.add( etcProp, "Reset" );
         const updateController = etcFolder.add( etcProp, "Updator" ).listen().onChange( value => { localIRC.context.userData.updator.enabled = value } );
 
         let prevUUID = "";
@@ -721,6 +800,7 @@ export class PalletEngine extends PalletElement {
                 if ( obj.userData.mixer ) {
                     animPause.enable();
                     animLoop.enable();
+                    resetButton.enable();
 
                     if ( obj.userData.action.paused ) {
                         animLoop.setValue( obj.userData.action.paused === THREE.LoopRepeat );
@@ -734,6 +814,7 @@ export class PalletEngine extends PalletElement {
                 else{
                     animPause.disable();
                     animLoop.disable();
+                    resetButton.disable();
                 }
 
                 if ( obj.userData.updator ) {
@@ -797,6 +878,7 @@ export class PalletEngine extends PalletElement {
 
                 animPause.disable();
                 animLoop.disable();
+                resetButton.disable();
                 updateController.disable();
 
                 prevUUID = "";
@@ -861,21 +943,50 @@ export class PalletEngine extends PalletElement {
         const gridPlane : THREE.Mesh = new THREE.Mesh( new THREE.PlaneGeometry( 50, 50, 10, 10 ), new THREE.MeshBasicMaterial( { transparent : true, opacity: 0.1, color: 0x576076 } ) );
         gridPlane.name = 'GridPlane';
         gridPlane.isGround = true;
+        gridPlane.castShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
         this.camera.position.set( 0, 5, 5 );
         this.sceneGraph.add( gridHelper );
         this.sceneGraph.add( gridPlane );
+        this.sceneGraph.userData.gridPlane = gridPlane;
+        this.sceneGraph.userData.gridHelper = gridHelper;
+
+        this.directionalLight = new THREE.DirectionalLight( 0xffffff, 10 );
+
+        this.directionalLight.shadow.camera.right = 25;
+        this.directionalLight.shadow.camera.left = - 25;
+        this.directionalLight.shadow.camera.top = 25;
+        this.directionalLight.shadow.camera.bottom = - 25;
+        this.directionalLight.shadow.camera.far = 10;
+        this.directionalLight.shadow.camera.near = -50;
+        this.directionalLight.shadow.camera.width = 1024;
+        this.directionalLight.shadow.camera.height = 1024;
         this.sceneGraph.add( this.directionalLight );
+        this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
         this.sceneGraph.add( this.ambientLight );
+
+        this.directionalLight.castShadow = true;
 
         //create temporal object
 
         const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
         this.sceneGraph.add( cube );
         _defaultCube = cube;
+        _defaultCube.receiveShadow = true;
+        _defaultCube.castShadow = true;
         _defaultCube.userData.updator = this.addUpdator( ( delta ) => { 
             cube.rotation.x += 0.01;
             cube.rotation.y += 0.01;
+        } );
+
+        const cube1 = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
+        this.sceneGraph.add( cube1 );
+        cube1.receiveShadow = true;
+        cube1.castShadow = true;
+        cube1.position.set( 1, 1, 0.5 );
+        cube1.userData.updator = this.addUpdator( ( delta ) => { 
+            cube1.rotation.x += 0.01;
+            cube1.rotation.z += 0.01;
         } );
     }
 
@@ -894,11 +1005,52 @@ export class PalletEngine extends PalletElement {
         }, /* onProgress, onError */ );
     }
 
-    update( dt : Number ) {
+    update( dt : number ) {
         this.updateFunctions.map( updator => { if ( updator.enabled ) updator.func( dt ) } );
         this.commandQueue.update();
 
         this.controller.update();
+
+        // shadow routine begin
+
+        // remove the background
+        const initialBackground = this.sceneGraph.background;
+        this.sceneGraph.background = null;
+
+        // force the depthMaterial to everything
+        this.shadowCameraHelper.visible = false;
+        this.sceneGraph.userData.gridPlane.visible = false;
+        this.sceneGraph.userData.gridHelper.visible = false;
+        this.sceneGraph.overrideMaterial = this.depthMaterial;
+
+        // set renderer clear alpha
+        const initialClearAlpha = Renderer.Get().getClearAlpha();
+        Renderer.Get().setClearAlpha( 0 );
+
+        // render to the render target to get the depths
+        Renderer.Get().setRenderTarget( this.renderTarget );
+        Renderer.Get().render( this.sceneGraph, this.shadowCamera );
+
+        // and reset the override material
+        this.sceneGraph.overrideMaterial = null;
+        this.shadowCameraHelper.visible = true;        
+        this.sceneGraph.userData.gridPlane.visible = true;
+        this.sceneGraph.userData.gridHelper.visible = true;
+
+        const blur = 0.2;
+        this.blurShadow( this.shaderState.shadow.blur );
+
+        // a second pass to reduce the artifacts
+        // (0.4 is the minimum blur amout so that the artifacts are gone)
+        this.blurShadow( this.shaderState.shadow.blur * 0.4 );
+
+        // shadow routine end
+
+        // reset and render the normal scene
+        Renderer.Get().setRenderTarget( null );
+        Renderer.Get().setClearAlpha( initialClearAlpha );
+        this.sceneGraph.background = initialBackground;
+
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
 
@@ -911,6 +1063,31 @@ export class PalletEngine extends PalletElement {
     appendCommand() {
 
     }
+
+    // renderTarget --> blurPlane (horizontalBlur) --> renderTargetBlur --> blurPlane (verticalBlur) --> renderTarget
+    blurShadow( amount ) {
+
+        this.shadowBlurPlane.visible = true;
+
+        // blur horizontally and draw in the renderTargetBlur
+        this.shadowBlurPlane.material = this.horizontalBlurMaterial;
+        this.shadowBlurPlane.material.uniforms.tDiffuse.value = this.renderTarget.texture;
+        this.horizontalBlurMaterial.uniforms.h.value = amount * 1 / 256;
+
+        Renderer.Get().setRenderTarget( this.renderTargetBlur );
+        Renderer.Get().render( this.shadowBlurPlane, this.shadowCamera );
+
+        // blur vertically and draw in the main renderTarget
+        this.shadowBlurPlane.material = this.verticalBlurMaterial;
+        this.shadowBlurPlane.material.uniforms.tDiffuse.value = this.renderTargetBlur.texture;
+        this.verticalBlurMaterial.uniforms.v.value = amount * 1 / 256;
+
+        Renderer.Get().setRenderTarget( this.renderTarget );
+        Renderer.Get().render( this.shadowBlurPlane, this.shadowCamera );
+
+        this.shadowBlurPlane.visible = false;
+
+    }
 }
 
 customElements.define( 'pallet-element', PalletElement );
@@ -918,7 +1095,6 @@ customElements.define( 'pallet-engine', PalletEngine );
 
 
 let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
-console.log( canvasElements );
 export let _module : PalletEngine;
 
 if ( canvasElements.length > 0 ) {
