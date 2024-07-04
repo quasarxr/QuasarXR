@@ -1,4 +1,6 @@
 {
+  "/_not-found": "app/_not-found.js",
   "/page": "app/page.js",
-  "/SubApp/page": "app/SubApp/page.js"
+  "/SubApp/page": "app/SubApp/page.js",
+  "/SubApp/SubLeafApp/page": "app/SubApp/SubLeafApp/page.js"
 }
