@@ -1022,6 +1022,12 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.userData.gridPlane.visible = false;
         this.sceneGraph.userData.gridHelper.visible = false;
         this.sceneGraph.overrideMaterial = this.depthMaterial;
+        let gizmoVisible = false;
+        const transformControls = ( this.irc as DesktopIRC ).controls;
+        if ( this.irc ) {
+            gizmoVisible = transformControls.visible;
+            transformControls.visible = false;
+        }
 
         // set renderer clear alpha
         const initialClearAlpha = Renderer.Get().getClearAlpha();
@@ -1033,9 +1039,10 @@ export class PalletEngine extends PalletElement {
 
         // and reset the override material
         this.sceneGraph.overrideMaterial = null;
-        this.shadowCameraHelper.visible = true;        
+        //this.shadowCameraHelper.visible = true;
         this.sceneGraph.userData.gridPlane.visible = true;
-        this.sceneGraph.userData.gridHelper.visible = true;
+        this.sceneGraph.userData.gridHelper.visible = true;        
+        transformControls.visible = gizmoVisible;
 
         const blur = 0.2;
         this.blurShadow( this.shaderState.shadow.blur );

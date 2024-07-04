@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import '../global.css'
+import '@/styles/global.css'
 
 let PalletPromise = null;
 
