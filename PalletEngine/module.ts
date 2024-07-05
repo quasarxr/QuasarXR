@@ -587,9 +587,8 @@ export class PalletEngine extends PalletElement {
         const planeGeometry = new THREE.PlaneGeometry( 50, 50 ).rotateX( Math.PI / 2 );
         const planeMaterial = new THREE.MeshBasicMaterial( { map : this.renderTarget.texture , opacity: 1, transparent: true, depthWrite: false } );
         this.shadowPlane = new THREE.Mesh( planeGeometry, planeMaterial );
-        this.shadowPlane.scale.y = -1;
-        this.shadowPlane.position.set( 0, 0.1, 0 );
-        this.shadowPlane.renderOrder = 1;
+        this.shadowPlane.scale.y = -1; // reverse y axis
+        this.shadowPlane.renderOrder = -1;
         this.shadowGroup.add( this.shadowPlane );
         
         this.shadowBlurPlane = new THREE.Mesh( planeGeometry );
