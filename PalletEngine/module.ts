@@ -528,6 +528,7 @@ export class PalletEngine extends PalletElement {
         renderer.setClearColor( 0x3c3c3c );
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.xr.enabled = true;
         renderer.setAnimationLoop( () => {
             const dt = this.clock.getDelta();
             this.update( dt );
@@ -1063,7 +1064,6 @@ export class PalletEngine extends PalletElement {
     }
 
     createVREnvironment() {
-        Renderer.Get().xr.enabled = true;
         document.body.appendChild( VRButton.createButton( Renderer.Get() ) );
     }
 
