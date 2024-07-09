@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import * as THREE from 'three'
 import '@/styles/global.css'
 import styles from './styles.module.css';
 
