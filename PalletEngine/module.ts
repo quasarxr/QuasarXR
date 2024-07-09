@@ -16,6 +16,10 @@ import { ImageUtils } from 'three/src/extras/ImageUtils';
 import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader';
 import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader';
 
+// vr 
+import { VRButton } from 'three/examples/jsm/webxr/VRButton';
+
+
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
 let _defaultCube : THREE.Mesh;
@@ -30,7 +34,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 enum PowerPreference { HighPerformance = "high-performance", LowPower = "low-power", Default = "default" };
 enum MouseEvent { Left = 0, Wheel = 1, Right = 2 };
-
+enum RaycastLayer { Default = 0, NoRaycast = 1 };
+ 
 function findParentByType( object , type ) {
     if (object.parent instanceof type ) {
         return object.parent; // 부모 요소가 해당 타입인 경우 반환
@@ -73,6 +78,7 @@ class InteractionController {
     
     constructor( option : Object ) {
         this.raycaster = new THREE.Raycaster();
+        this.raycaster.layers.disable( RaycastLayer.NoRaycast );
         this.raycaster.params.Line.threshold = 0;
     }    
     drawHelper() {}
@@ -244,6 +250,7 @@ class DesktopIRC extends InteractionController {
     onRightClick( pointer : THREE.Vector2, state ) {
         this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ), _module.camera );
         const hits = this.raycaster.intersectObject( _module.sceneGraph );
+        console.log( state );
         if ( state.drag == false )
             this.onContext( hits, pointer );
     }
@@ -257,9 +264,8 @@ class DesktopIRC extends InteractionController {
     }
 
     onContext( hits : Array<any>, position : THREE.Vector2 ) {
-        const hitMeshes = hits.filter( h => h.object.isMesh && ! ( findParentByType( h.object, TransformControls ) ) );
+        const hitMeshes = hits.filter( h => h.object.isMesh && ! findParentByType( h.object, TransformControls ) );
         if ( hitMeshes.length > 0 ) { // Some object3D hangs in ray
-            console.log( hitMeshes );
             //this.controls.enabled = false;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             if ( hitMeshes[0].object.isGround ) {
@@ -275,22 +281,26 @@ class DesktopIRC extends InteractionController {
             this.hitPoint.copy( hitMeshes[0].point );
         } else { // hangs nothing
             this.context = null;
-            this.disableContextGUI();
+            this.enableContextGUI( position, 'add' );
+            //this.disableContextGUI();
         }
     }
     
     onIntersection( hits : Array<any> ) {        
         this.replaceButtonImage( undefined );
-        const hitMeshes = hits.filter( h => h.object.isMesh && ! ( findParentByType( h.object, TransformControls ) ) );
-        console.log( hitMeshes );
-        if ( hitMeshes.length > 0 && !hitMeshes[0].object.isGround ) { // prevents any action to ground
+        const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && !h.object.isGround );
+        console.log( hits, hitMeshes )
+        if ( hitMeshes.length > 0 ) { // prevents any action to ground
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             this.targetMaterial = null;
             if ( group ) {
                 this.controls.attach( group );
                 this.context = group;
-            } else {
+            } else if ( hitMeshes[0].object.isHelper ) {
+                this.controls.attach( hitMeshes[0].object.light );
+                this.context = hitMeshes[0].object.light;
+            }else {
                 const pickedObject = hitMeshes[0].object;
                 this.controls.attach( pickedObject );
                 this.context = hitMeshes[0].object;                
@@ -494,6 +504,9 @@ export class PalletEngine extends PalletElement {
     depthMaterial : THREE.MeshDepthMaterial;
     horizontalBlurMaterial : THREE.ShaderMaterial;
     verticalBlurMaterial = THREE.ShaderMaterial;
+
+    // helper
+    helperGroup : THREE.Group;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
@@ -504,6 +517,8 @@ export class PalletEngine extends PalletElement {
         this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
         this.controller.enableDamping = true; // smooth move to camera
         this.controller.dampingFactor = 0.1;
+        this.controller.minDistance = 1;
+        this.controller.maxDistance = 100;
         this.updateFunctions = new Array<Updator>(); // 
         this.commandQueue = new CommandQueue(); // for customize events
         
@@ -589,6 +604,7 @@ export class PalletEngine extends PalletElement {
         this.shadowPlane = new THREE.Mesh( planeGeometry, planeMaterial );
         this.shadowPlane.scale.y = -1; // reverse y axis
         this.shadowPlane.renderOrder = -1;
+        this.shadowPlane.layers.set( RaycastLayer.NoRaycast );
         this.shadowGroup.add( this.shadowPlane );
         
         this.shadowBlurPlane = new THREE.Mesh( planeGeometry );
@@ -620,6 +636,8 @@ export class PalletEngine extends PalletElement {
 
         this.verticalBlurMaterial = new THREE.ShaderMaterial( VerticalBlurShader );
         this.verticalBlurMaterial.depthTest = false;
+
+        this.helperGroup = new THREE.Group();
 
         this.createScene();
         this.createGUI();
@@ -701,7 +719,6 @@ export class PalletEngine extends PalletElement {
                     reader.onload = event => {
                     const loader = new THREE.TextureLoader();
                     loader.load(event.target.result, texture => {
-                        console.log( localIRC.context );
                         localIRC.replaceTexture( texture );
                         //target.material.map = texture;
                     });
@@ -898,34 +915,76 @@ export class PalletEngine extends PalletElement {
         const propertyFolder = this.contextGUI.addFolder( 'Property' );
         propertyFolder.hide();
         
-
         const creationParam = {
             Box: () => {
                 localIRC.disableContextGUI(); // refactoring
                 const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-                const material = new THREE.MeshBasicMaterial();
+                const material = new THREE.MeshStandardMaterial();
                 const box = new THREE.Mesh( geometry, material );
                 box.position.copy( localIRC.hitPoint );
+                box.castShadow = true;
+                box.receiveShadow = true;
                 this.sceneGraph.add( box );
             },
             Sphere: () => {
                 localIRC.disableContextGUI(); // refactoring
                 const geometry = new THREE.SphereGeometry( 0.8, 30, 15 );
-                const material = new THREE.MeshBasicMaterial();
+                const material = new THREE.MeshStandardMaterial();
                 const sphere = new THREE.Mesh( geometry, material );
                 sphere.position.copy( localIRC.hitPoint );
+                sphere.castShadow = true;
+                sphere.receiveShadow = true;
                 this.sceneGraph.add( sphere );
             },
             Plane: () => {
                 localIRC.disableContextGUI(); // refactoring
                 const geometry = new THREE.PlaneGeometry( 1, 1, 1 );
-                const material = new THREE.MeshBasicMaterial();
+                const material = new THREE.MeshStandardMaterial();
                 const plane = new THREE.Mesh( geometry, material );
                 plane.position.copy( localIRC.hitPoint );
                 this.sceneGraph.add( plane );
             },
             GLB: () => {
                 localIRC.disableContextGUI(); // refactoring
+            },
+            DirectionalLight: () => {
+                localIRC.disableContextGUI();
+                const light = new THREE.DirectionalLight();
+                light.castShadow = true;
+                light.shadow.camera.near = 1;
+				light.shadow.camera.far = 10;
+				light.shadow.camera.right = 15;
+				light.shadow.camera.left = - 15;
+				light.shadow.camera.top	= 15;
+				light.shadow.camera.bottom = - 15;
+				light.shadow.mapSize.width = 512;
+				light.shadow.mapSize.height = 512;
+                
+                const helper = new THREE.DirectionalLightHelper( light, 1 );
+                helper.isHelper = true;
+                this.sceneGraph.add( light );
+                this.sceneGraph.add( helper );
+            },
+            PointLight: () => {
+                localIRC.disableContextGUI();
+                const light = new THREE.PointLight();
+                const helper = new THREE.PointLightHelper( light, 1 );
+                helper.isHelper = true;
+                this.sceneGraph.add( light );
+                this.sceneGraph.add( helper );
+            },
+            SpotLight: () => {
+                localIRC.disableContextGUI();
+                const light = new THREE.SpotLight();
+                const helper = new THREE.SpotLightHelper( light, 1 );
+                helper.isHelper = true;
+                this.sceneGraph.add( light );
+                this.sceneGraph.add( helper );
+            },
+            HemisphereLight: () => {
+                localIRC.disableContextGUI();
+                const light = new THREE.HemisphereLight( 0xffffff, 0x080820, 1 );
+                this.sceneGraph.add( light );
             }
         }
 
@@ -934,7 +993,10 @@ export class PalletEngine extends PalletElement {
         create.add( creationParam, 'Sphere' );
         create.add( creationParam, 'Plane' );
         create.add( creationParam, 'GLB' );
-        console.log( this.contextGUI );
+        create.add( creationParam, 'DirectionalLight' );
+        create.add( creationParam, 'PointLight' );
+        create.add( creationParam, 'SpotLight' );
+        create.add( creationParam, 'HemisphereLight' );
     }
 
     createScene() {
@@ -944,6 +1006,7 @@ export class PalletEngine extends PalletElement {
         gridPlane.isGround = true;
         gridPlane.castShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
+        //gridPlane.layers.set( RaycastLayer.NoRaycast );
         this.camera.position.set( 0, 5, 5 );
         this.sceneGraph.add( gridHelper );
         this.sceneGraph.add( gridPlane );
@@ -965,6 +1028,8 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.add( this.ambientLight );
 
         this.directionalLight.castShadow = true;
+
+        this.sceneGraph.add( this.helperGroup );
 
         //create temporal object
 
@@ -995,6 +1060,10 @@ export class PalletEngine extends PalletElement {
 
     createEnvironment() {
 
+    }
+
+    createVREnvironment() {
+        document.body.appendChild( VRButton.createButton( Renderer.Get() ) );
     }
 
     loadGLTF( url : string, onload : Function ) {
