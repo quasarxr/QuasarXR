@@ -1063,6 +1063,7 @@ export class PalletEngine extends PalletElement {
     }
 
     createVREnvironment() {
+        Renderer.Get().xr.enabled = true;
         document.body.appendChild( VRButton.createButton( Renderer.Get() ) );
     }
 
