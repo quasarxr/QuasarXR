@@ -19,11 +19,15 @@ export default function page() {
         document.body.appendChild(VRButton.createButton(renderer));
         
         const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(geometry, material);
+        const light = new THREE.DirectionalLight(0xffffff, 10);
+        const ambient = new THREE.AmbientLight(0xffffff);
         scene.add(cube);
+        scene.add(light);
+        scene.add(ambient);
         
-        camera.position.set(0, 1.6, 3);
+        camera.position.set(0, 0, 5);
         
         function animate() {
             renderer.setAnimationLoop(function () {
