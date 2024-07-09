@@ -523,9 +523,11 @@ export class PalletEngine extends PalletElement {
         this.commandQueue = new CommandQueue(); // for customize events
         
         // create renderer, IRC selectionHelper initialize Issue
-        const renderer = Renderer.Create( { antialias: true, canvas: canvas } as RenderOptions );
+        const renderer = Renderer.Create( { antialias: true, canvas: canvas, alpha: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true } as RenderOptions );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.setClearColor( 0x3c3c3c );
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.xr.enabled = true;
@@ -1053,6 +1055,11 @@ export class PalletEngine extends PalletElement {
             cube1.rotation.x += 0.01;
             cube1.rotation.z += 0.01;
         } );
+
+        // enable all layer
+        for ( let key in RaycastLayer ) {
+            this.camera.layers.enable( key );
+        }
     }
 
     clearScene() {
