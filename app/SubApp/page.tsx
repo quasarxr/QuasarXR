@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import '@/styles/global.css'
+import styles from './styles.module.css';
 
 let PalletPromise = null;
 
@@ -20,7 +21,6 @@ export default function Page() {
         PalletPromise = import( '../../PalletEngine/module' );
         PalletPromise.then( pallet => {
           pallet._module.loadGLTF( './mario_animacion.glb', gltf => {
-            console.log( 'load gltf ' );
             const mixer = new THREE.AnimationMixer( gltf.scene );
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
@@ -28,7 +28,6 @@ export default function Page() {
 
             gltf.scene.traverse( object => {
               if ( object.isMesh ) {
-                console.log( object );
                 object.castShadow = true;
                 object.receiveShadow = true;
               }
@@ -56,7 +55,8 @@ export default function Page() {
               mixer.update( dt );
             }  );            
           } );
-        } )
+          pallet._module.createVREnvironment();
+        } );
       }
 
     } /*, [] */ );

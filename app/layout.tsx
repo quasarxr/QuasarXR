@@ -18,6 +18,8 @@ export default function RootLayout({
     }
     return (
       <html lang="en">
+        <title>QuasarXR</title>
+        <head><link rel="icon" href="/favicon.ico" sizes="any" /></head>
         <body style={htmlStyle}>{children}</body>
       </html>
     )

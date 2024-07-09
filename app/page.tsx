@@ -1,9 +1,7 @@
-//import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './entry.module.css';
 
 export default function Page() {
-  //const router = useRouter();
   const redirects = { about: "", demo: "", editor: "SubApp", document: "", letter: "" };
   return (
     <div className={styles.container}>
@@ -29,7 +27,7 @@ export default function Page() {
             <div className={styles['button-link']}>문의</div>
           </Link>
         </div>
-      </div>      
+      </div>
     </div>
   );
 }
