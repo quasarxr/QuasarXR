@@ -1037,6 +1037,7 @@ export class PalletEngine extends PalletElement {
         //create temporal object
 
         const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
+        cube.position.set( 3, 0.5, -5 );
         this.sceneGraph.add( cube );
         _defaultCube = cube;
         _defaultCube.receiveShadow = true;
@@ -1047,10 +1048,10 @@ export class PalletEngine extends PalletElement {
         } );
 
         const cube1 = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
+        cube1.position.set( -3, 0.5, -5 );
         this.sceneGraph.add( cube1 );
         cube1.receiveShadow = true;
         cube1.castShadow = true;
-        cube1.position.set( 1, 1, 0.5 );
         cube1.userData.updator = this.addUpdator( ( delta ) => { 
             cube1.rotation.x += 0.01;
             cube1.rotation.z += 0.01;

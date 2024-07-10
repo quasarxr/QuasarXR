@@ -21,6 +21,7 @@ export default function Page() {
         PalletPromise = import( '../../PalletEngine/module' );
         PalletPromise.then( pallet => {
           pallet._module.loadGLTF( './mario_animacion.glb', gltf => {
+            gltf.scene.position.set( 0, -2, -5 );
             const mixer = new THREE.AnimationMixer( gltf.scene );
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
