@@ -1005,10 +1005,11 @@ export class PalletEngine extends PalletElement {
 
     createScene() {
         const gridHelper : THREE.GridHelper = new THREE.GridHelper( 50, 50, 0x7c7c7c, 0x5f5f5f );
-        const gridPlane : THREE.Mesh = new THREE.Mesh( new THREE.PlaneGeometry( 50, 50, 10, 10 ), new THREE.MeshBasicMaterial( { transparent : true, opacity: 0.1, color: 0x576076 } ) );
+        const gridPlane : THREE.Mesh = new THREE.Mesh( new THREE.PlaneGeometry( 50, 50, 10, 10 ), new THREE.MeshStandardMaterial( { transparent : true, opacity: 0.2, color: 0x576076 } ) );
         gridPlane.name = 'GridPlane';
         gridPlane.isGround = true;
-        gridPlane.castShadow = true;
+        gridPlane.castShadow = false;
+        gridPlane.receiveShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
         //gridPlane.layers.set( RaycastLayer.NoRaycast );
         this.camera.position.set( 0, 5, 5 );
@@ -1019,19 +1020,20 @@ export class PalletEngine extends PalletElement {
 
         this.directionalLight = new THREE.DirectionalLight( 0xffffff, 10 );
 
+        this.directionalLight.castShadow = true;
         this.directionalLight.shadow.camera.right = 25;
         this.directionalLight.shadow.camera.left = - 25;
         this.directionalLight.shadow.camera.top = 25;
         this.directionalLight.shadow.camera.bottom = - 25;
         this.directionalLight.shadow.camera.far = 10;
-        this.directionalLight.shadow.camera.near = -50;
-        this.directionalLight.shadow.camera.width = 1024;
-        this.directionalLight.shadow.camera.height = 1024;
+        this.directionalLight.shadow.camera.near = 1;
+        this.directionalLight.shadow.mapSize.width = 2048;
+        this.directionalLight.shadow.mapSize.height = 2048;
+        this.directionalLight.position.set( 0, 10, 0 );
         this.sceneGraph.add( this.directionalLight );
+
         this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
         this.sceneGraph.add( this.ambientLight );
-
-        this.directionalLight.castShadow = true;
 
         this.sceneGraph.add( this.helperGroup );
 
