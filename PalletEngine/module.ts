@@ -619,6 +619,7 @@ export class PalletEngine extends PalletElement {
         this.shadowGroup.add( this.shadowCamera );
 
         this.shadowCameraHelper = new THREE.CameraHelper( this.shadowCamera );
+        this.shadowCameraHelper.visible = false;
         this.shadowGroup.add( this.shadowCameraHelper );
 
         this.depthMaterial = new THREE.MeshDepthMaterial();
@@ -1090,12 +1091,12 @@ export class PalletEngine extends PalletElement {
 
         // shadow routine begin
 
+        /** 
         // remove the background
         const initialBackground = this.sceneGraph.background;
         this.sceneGraph.background = null;
 
         // force the depthMaterial to everything
-        this.shadowCameraHelper.visible = false;
         this.sceneGraph.userData.gridPlane.visible = false;
         this.sceneGraph.userData.gridHelper.visible = false;
         this.sceneGraph.overrideMaterial = this.depthMaterial;
@@ -1116,7 +1117,6 @@ export class PalletEngine extends PalletElement {
 
         // and reset the override material
         this.sceneGraph.overrideMaterial = null;
-        //this.shadowCameraHelper.visible = true;
         this.sceneGraph.userData.gridPlane.visible = true;
         this.sceneGraph.userData.gridHelper.visible = true;        
         transformControls.visible = gizmoVisible;
@@ -1128,12 +1128,12 @@ export class PalletEngine extends PalletElement {
         // (0.4 is the minimum blur amout so that the artifacts are gone)
         this.blurShadow( this.shaderState.shadow.blur * 0.4 );
 
-        // shadow routine end
-
         // reset and render the normal scene
         Renderer.Get().setRenderTarget( null );
         Renderer.Get().setClearAlpha( initialClearAlpha );
         this.sceneGraph.background = initialBackground;
+        */
+        // shadow routine end
 
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
