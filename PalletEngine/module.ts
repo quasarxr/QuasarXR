@@ -270,6 +270,8 @@ class DesktopIRC extends InteractionController {
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             if ( hitMeshes[0].object.isGround ) {
                 this.enableContextGUI( position, 'add' );
+            } else if ( hitMeshes[0].object.isHelper ) {
+                this.enableContextGUI( position, 'light' );
             } else {
                 this.enableContextGUI( position, 'property' );
             }
@@ -289,7 +291,6 @@ class DesktopIRC extends InteractionController {
     onIntersection( hits : Array<any> ) {        
         this.replaceButtonImage( undefined );
         const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && !h.object.isGround );
-        console.log( hits, hitMeshes )
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
@@ -298,6 +299,7 @@ class DesktopIRC extends InteractionController {
                 this.controls.attach( group );
                 this.context = group;
             } else if ( hitMeshes[0].object.isHelper ) {
+                console.log( hitMeshes[0].object );
                 this.controls.attach( hitMeshes[0].object.light );
                 this.context = hitMeshes[0].object.light;
             }else {
@@ -918,6 +920,20 @@ export class PalletEngine extends PalletElement {
 
         const propertyFolder = this.contextGUI.addFolder( 'Property' );
         propertyFolder.hide();
+
+        const lightFolder = this.contextGUI.addFolder('Light');
+        const lightParam = {
+            Color: '#ffffff',
+            Intensity: 1,
+        };
+
+        lightFolder.addColor( lightParam, 'Color' ).onChange( color => {
+            localIRC.context.light.color = new THREE.Color( color );
+        } );
+
+        lightFolder.add( lightParam, 'Intensity', 0, 1000, 1 ).onChange( intensity => {
+            localIRC.context.light.intensity = intensity;
+        } );
         
         const creationParam = {
             Box: () => {
@@ -956,14 +972,13 @@ export class PalletEngine extends PalletElement {
                 const light = new THREE.DirectionalLight();
                 light.castShadow = true;
                 light.shadow.camera.near = 1;
-				light.shadow.camera.far = 10;
+				light.shadow.camera.far = 100;
 				light.shadow.camera.right = 15;
 				light.shadow.camera.left = - 15;
 				light.shadow.camera.top	= 15;
 				light.shadow.camera.bottom = - 15;
 				light.shadow.mapSize.width = 512;
-				light.shadow.mapSize.height = 512;
-                
+				light.shadow.mapSize.height = 512;                
                 const helper = new THREE.DirectionalLightHelper( light, 1 );
                 helper.isHelper = true;
                 this.sceneGraph.add( light );
@@ -979,11 +994,21 @@ export class PalletEngine extends PalletElement {
             },
             SpotLight: () => {
                 localIRC.disableContextGUI();
-                const light = new THREE.SpotLight();
-                const helper = new THREE.SpotLightHelper( light, 1 );
+                const light = new THREE.SpotLight( 0xffffff, 3, 0, 0.3, 1, 0 );
+                light.position.set( 0, 3, 0 );
+                light.castShadow = true;
+                const helperParent = new THREE.Object3D();
+                const helper = new THREE.Mesh( new THREE.ConeGeometry( 1, 3, 10 ), new THREE.MeshBasicMaterial( { color: 0xffffff, wireframe: true } ) );
+                helper.light = light;
                 helper.isHelper = true;
+                helper.rotation.set( -1.57, 0, 0 );
+                helperParent.add( helper );
                 this.sceneGraph.add( light );
-                this.sceneGraph.add( helper );
+                light.add( helperParent );
+                let updator : Updator = { func : ( dt ) => {
+                    helperParent.lookAt( light.target.position );
+                }, enabled : true };
+                this.updateFunctions.push( updator );
             },
             HemisphereLight: () => {
                 localIRC.disableContextGUI();
@@ -1025,13 +1050,13 @@ export class PalletEngine extends PalletElement {
         this.directionalLight.shadow.camera.left = - 25;
         this.directionalLight.shadow.camera.top = 25;
         this.directionalLight.shadow.camera.bottom = - 25;
-        this.directionalLight.shadow.camera.far = 10;
+        this.directionalLight.shadow.camera.far = 150;
         this.directionalLight.shadow.camera.near = 1;
         this.directionalLight.shadow.mapSize.width = 2048;
         this.directionalLight.shadow.mapSize.height = 2048;
-        this.directionalLight.position.set( 0, 10, 0 );
-        this.sceneGraph.add( this.directionalLight );
+        this.directionalLight.position.set( 0, 125, 0 );
 
+        this.sceneGraph.add( this.directionalLight );
         this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
         this.sceneGraph.add( this.ambientLight );
 
