@@ -20,8 +20,11 @@ export default function Page() {
       if ( PalletPromise === null ) {
         PalletPromise = import( '../../PalletEngine/module' );
         PalletPromise.then( pallet => {
-          pallet._module.loadGLTF( './mario_animacion.glb', gltf => {
-            gltf.scene.position.set( 0, -2, -5 );
+          //'./mario_animacion.glb'
+          pallet._module.loadGLTF( './daft_punk_in_end_of_line_club.glb', gltf => {
+            console.log( gltf );
+            gltf.scene.position.set( 0, 0.5, 0);
+            gltf.scene.scale.set( 0.1, 0.1, 0.1 );
             const mixer = new THREE.AnimationMixer( gltf.scene );
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
@@ -54,7 +57,7 @@ export default function Page() {
               //box3Helper.box.makeEmpty();
               //box3Helper.box.setFromObject( gltf.scene, true );
               mixer.update( dt );
-            }  );            
+            }, gltf.scene );            
           } );
           pallet._module.createVREnvironment();
         } );
