@@ -19,12 +19,23 @@ import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShade
 // vr 
 import { VRButton } from 'three/examples/jsm/webxr/VRButton';
 
+// monaco-editor
+import * as monaco from 'monaco-editor';
+import Editor, { loader } from '@monaco-editor/react';
+import { UUID } from 'crypto';
+
+// audio
+import { PositionalAudioHelper } from 'three/examples/jsm/helpers/PositionalAudioHelper';
+
+// hdr
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
 let _defaultCube : THREE.Mesh;
 let _version = { major: 0, minor: 1, patch: 0, get : () => `Pallet v.${_version.major}.${_version.minor}.${_version.patch}` };
-let _product = { name : 'Pallet' }
+let _product = { name : 'Pallet' };
 console.log( _version.get() );
 
 // replace extension functions
@@ -46,6 +57,14 @@ function findParentByType( object , type ) {
     }
 }
 
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace( /[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0,
+              v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    } );
+}
+
 export type RenderOptions = {
     canvas : HTMLCanvasElement,
     context : RenderingContext,
@@ -61,8 +80,16 @@ export type RenderOptions = {
 }
 
 export type Updator = {
+    //uuid : string,
     func : (dt : number) => void,
-    enabled : boolean
+    enabled : boolean,
+    archetype : string
+}
+
+export type RaycastEvent = {
+    trigger : string,
+    handler : () => void,
+    uuid : string,
 }
 
 export class Command {
@@ -317,6 +344,14 @@ class DesktopIRC extends InteractionController {
                           }.bind(this))(pickedObject.material.map.image);
                     }
                 }
+
+                if ( pickedObject.userData.events ) {
+                    pickedObject.userData.events.forEach( event => {
+                     if ( event.trigger == 'click' ) {
+                        event.handler();
+                     }   
+                    } )
+                }
             }
         } else {                
             this.controls.detach();
@@ -509,6 +544,14 @@ export class PalletEngine extends PalletElement {
 
     // helper
     helperGroup : THREE.Group;
+
+    // monaco-editor
+    monacoInstance : monaco.editor.IStandaloneCodeEditor;
+    editorElement : HTMLElement;    
+    editScriptIndex : number;
+
+    // hdr
+    hdrUrl : string;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
@@ -645,8 +688,72 @@ export class PalletEngine extends PalletElement {
 
         this.helperGroup = new THREE.Group();
 
+        this.hdrUrl = 'studio_small_08_4k.exr';
+
         this.createScene();
         this.createGUI();
+    }
+
+    createMonacoEditor() {
+        // monaco-editor load
+        loader.init().then( ( monaco ) => {
+            this.editorElement = document.createElement( 'div' );            
+            this.editorElement.style.position = 'absolute';
+            this.editorElement.style.left = '50%';
+            this.editorElement.style.top = '50%';
+            this.editorElement.style.width = '60%';
+            this.editorElement.style.height = '350px';
+            this.editorElement.style.transform = 'translate(-50%, -50%)';
+            this.editorElement.style.border = '1px solid black';
+            this.editorElement.style.borderRadius = '10px';
+            this.editorElement.style.display = 'flex';
+            this.editorElement.style.flexDirection = 'column';
+            this.editorElement.style.overflow = 'hidden';
+
+            const handleBar = document.createElement( 'div' );
+            handleBar.style.display = 'flex';
+            handleBar.style.width = '100%';
+            handleBar.style.height = '15px';
+            handleBar.style.backgroundColor = 'lightgrey';
+            handleBar.style.paddingBottom = '5px';
+            handleBar.style.justifyContent = 'end';
+
+            const applyButton = document.createElement( 'div' );
+            applyButton.textContent = 'apply';
+            applyButton.style.margin = '0px 15px 0px 5px';
+            applyButton.style.userSelect = 'none';
+            applyButton.addEventListener( 'click', event => {
+                this.applyEditorCode();
+            } );
+
+            const closeButton = document.createElement( 'div' );
+            closeButton.textContent = 'close';
+            closeButton.style.margin = '0px 15px 0px 5px';
+            closeButton.style.userSelect = 'none';
+            closeButton.addEventListener( 'click', event => {
+                this.editorElement.style.display = 'none';
+            } );
+
+            handleBar.appendChild( applyButton );
+            handleBar.appendChild( closeButton );
+
+            const monacoWrapper = document.createElement( 'div' );            
+            monacoWrapper.style.flex = '1';
+
+            this.editorElement.appendChild( handleBar );
+            this.editorElement.appendChild( monacoWrapper );
+            document.body.appendChild( this.editorElement );
+
+            const properties = {
+                value: 'function hello() {\n\talert("Hello world!");\n}',
+                language: 'javascript',
+                theme: 'vs-dark'
+            };
+            this.monacoInstance = monaco.editor.create( monacoWrapper, properties );
+            this.monacoInstance.setValue( "// Hello monaco editor ! " );
+
+            this.hideEditor();
+        } );
     }
 
     createGUI() {
@@ -785,7 +892,11 @@ export class PalletEngine extends PalletElement {
         } );
 
         const resetButton = etcFolder.add( etcProp, "Reset" );
-        const updateController = etcFolder.add( etcProp, "Updator" ).listen().onChange( value => { localIRC.context.userData.updator.enabled = value } );
+        const updateController = etcFolder.add( etcProp, "Updator" )
+        .listen()
+        .onChange( value => { 
+            localIRC.context.userData.updators.forEach( updator => updator.enabled = value ); 
+        } );
 
         let prevUUID = "";
 
@@ -839,10 +950,16 @@ export class PalletEngine extends PalletElement {
                     resetButton.disable();
                 }
 
-                if ( obj.userData.updator ) {
+                if ( obj.userData.updators ) {
                     updateController.enable();
-                    updateController.setValue( obj.userData.updator.enabled );
-                } else updateController.disable();
+
+                    let flag = false;
+                    obj.userData.updators.forEach( updator => { flag = flag || updator.enabled } );
+
+                    updateController.setValue( flag );
+                } else {
+                    updateController.disable();
+                }
 
                 if ( obj.isMesh && obj.material ) {
                     if ( obj.material.color )
@@ -851,7 +968,7 @@ export class PalletEngine extends PalletElement {
                         materialProp.Color = 0xffffff;
                 }
 
-                // update mesh
+                // update mesh folder
                 if ( obj.uuid === prevUUID ) {
                     // do not update 
                 } else {        
@@ -878,8 +995,27 @@ export class PalletEngine extends PalletElement {
                             }
                         } )
                     }
-                }
 
+                    clearFolder( editScriptFolder );
+                    editScriptFolder.add( propertyParam, "AddScript" ).name( "Add Script" );
+                    if ( obj.userData.updators ) {
+                        obj.userData.updators.forEach( (updator, index) => {
+                            console.log( updator );
+                            const scriptParam = { function: () => {
+                                console.log( updator.func.archetype );
+                                this.showEditor( updator.archetype, index );
+                            } };
+                            const control = editScriptFolder.add( scriptParam, 'function' ).name(`Script - ${index}`);
+                            console.log( control );
+                        } );
+                    }
+                    
+                    clearFolder( eventFolder );
+                    eventFolder.add( propertyParam, "AddEvent" ).name( "Add Event" );
+                    if ( obj.userData.events ) {
+                        obj.userData.events.forEach( (event, index) => {} );
+                    }
+                }
             } else {
                 // set default
                 posProp.X = 0;
@@ -904,21 +1040,28 @@ export class PalletEngine extends PalletElement {
                 updateController.disable();
 
                 prevUUID = "";
+
+                clearFolder( editScriptFolder );
             }
         } );
-
-        // const shape = this.screenGUI.addFolder( "Shapes" );
-        // const shapeProp = {
-
-        // }
 
         // context menu
         // assign custom style
         this.contextGUIOuter.style.cssText = 'position: absolute; left: 0px; top: 0px; visibility: hidden;';
 
-        const animationProps = { frame : 0 };
+        const propertyParam = {
+            AddScript: () => {
+
+            },
+            AddEvent: () => {
+
+            }
+        }
+ 
 
         const propertyFolder = this.contextGUI.addFolder( 'Property' );
+        const editScriptFolder = propertyFolder.addFolder( 'Scripts' );
+        const eventFolder = propertyFolder.addFolder( 'Events' );
         propertyFolder.hide();
 
         const lightFolder = this.contextGUI.addFolder('Light');
@@ -1007,8 +1150,9 @@ export class PalletEngine extends PalletElement {
                 light.add( helperParent );
                 let updator : Updator = { func : ( dt ) => {
                     helperParent.lookAt( light.target.position );
-                }, enabled : true };
+                }, enabled : true, archetype: '' };
                 this.updateFunctions.push( updator );
+                light.userData.scripts = [ updator.func ];
             },
             HemisphereLight: () => {
                 localIRC.disableContextGUI();
@@ -1026,6 +1170,8 @@ export class PalletEngine extends PalletElement {
         create.add( creationParam, 'PointLight' );
         create.add( creationParam, 'SpotLight' );
         create.add( creationParam, 'HemisphereLight' );
+        
+        this.createMonacoEditor();
     }
 
     createScene() {
@@ -1063,6 +1209,7 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.add( this.helperGroup );
 
         //create temporal object
+        
 
         const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
         cube.position.set( 3, 0.5, -5 );
@@ -1070,25 +1217,73 @@ export class PalletEngine extends PalletElement {
         _defaultCube = cube;
         _defaultCube.receiveShadow = true;
         _defaultCube.castShadow = true;
-        _defaultCube.userData.updator = this.addUpdator( ( delta ) => { 
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
-        } );
+        _defaultCube.userData.updators = [];
+        _defaultCube.userData.events = [];
+        let updator = this.addUpdator( function( delta ) { 
+            this.rotation.x += 0.01;
+            this.rotation.y += 0.01;
+        }, cube );
+        _defaultCube.userData.updators.push( updator );
+        
+        if ( true ) {
+            const listener = new THREE.AudioListener();
+            const audio = new THREE.PositionalAudio( listener );
+            this.camera.add( listener );
+            this.loadAudio( './Around_the_World.mp3', buffer => {
+                audio.setBuffer( buffer );
+                audio.autoplay = true;
+                audio.loop = true;
+                //const helper = new PositionalAudioHelper( audio, 10 );
+                //this.sceneGraph.add( helper );    
+            } );
+                        
+            let event : RaycastEvent = { trigger : 'click', handler : () => { 
+                console.log( '!!' );
+                if ( ! audio.isPlaying )
+                    audio.play();
+                else
+                    audio.stop();
+            }, uuid : generateUUID() };
+            _defaultCube.userData.events.push( event );   
+        }     
 
         const cube1 = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
         cube1.position.set( -3, 0.5, -5 );
         this.sceneGraph.add( cube1 );
         cube1.receiveShadow = true;
         cube1.castShadow = true;
-        cube1.userData.updator = this.addUpdator( ( delta ) => { 
-            cube1.rotation.x += 0.01;
-            cube1.rotation.z += 0.01;
-        } );
+        cube1.userData.updators = [];
+        cube1.userData.events = [];
+        updator = this.addUpdator( function( delta ) { 
+            this.rotation.x += 0.01;
+            this.rotation.z += 0.01;
+        }, cube1 );
+        cube1.userData.updators.push( updator );
 
         // enable all layer
         for ( let key in RaycastLayer ) {
             this.camera.layers.enable( key );
         }
+
+
+        //load hdr
+        (async () => {
+            const exrLoader = new EXRLoader();
+            exrLoader.load( this.hdrUrl, ( texture ) => {
+                //this.sceneGraph.background = texture;
+                texture.mapping = THREE.EquiretangularReflectionMapping;
+                console.log( texture );
+                
+                const pmremGenerator = new THREE.PMREMGenerator( Renderer.Get() );
+                pmremGenerator.compileEquirectangularShader();
+    
+                const renderTarget = pmremGenerator.fromEquirectangular( texture );
+    
+                this.sceneGraph.environment = renderTarget.texture;
+                //this.sceneGraph.background = renderTarget.texture;
+            } );
+        })();
+       
     }
 
     clearScene() {
@@ -1108,6 +1303,11 @@ export class PalletEngine extends PalletElement {
             onload( gltf );
             this.sceneGraph.add( gltf.scene );
         }, /* onProgress, onError */ );
+    }
+
+    loadAudio( url: string, onload : Function ) {
+        const audioLoader = new THREE.AudioLoader();
+        audioLoader.load( url, onload );
     }
 
     update( dt : number ) {
@@ -1165,14 +1365,12 @@ export class PalletEngine extends PalletElement {
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
 
-    addUpdator( func : (dt : number) => void, enabled : boolean = true ) {
-        let updator : Updator = { func : func, enabled : enabled }
+    addUpdator( func : (dt : number) => void, bind: THREE.Object3D = undefined, enabled : boolean = true ) {
+        let updator : Updator = { func : func, enabled : enabled, archetype : func.toString() };
+        console.log( bind );
+        updator.func = updator.func.bind( bind );
         this.updateFunctions.push( updator );
         return updator;
-    }
-
-    appendCommand() {
-
     }
 
     // renderTarget --> blurPlane (horizontalBlur) --> renderTargetBlur --> blurPlane (verticalBlur) --> renderTarget
@@ -1198,6 +1396,46 @@ export class PalletEngine extends PalletElement {
 
         this.shadowBlurPlane.visible = false;
 
+    }
+
+    showEditor( snippet : string = null, index : number = -1 ) {
+        if ( snippet ) {
+            const content = snippet.substring( snippet.indexOf( '{' ) + 1, snippet.lastIndexOf( '}' ) );
+            this.monacoInstance.setValue( content );
+        }
+        this.editScriptIndex = index;
+        this.editorElement.style.display = 'flex';
+    }
+
+    hideEditor() {
+        this.editScriptIndex = -1;
+        this.editorElement.style.display = 'none';
+    }
+
+    applyEditorCode() {
+        const localIRC = this.irc as DesktopIRC;
+        const obj = localIRC.context;
+        console.log( obj );
+        let code = 0;
+        let msg = undefined;
+        if ( this.editScriptIndex < 0 ) {
+            code = -1;
+            msg = '[script edit] invalid script index';
+        }
+        if ( ! obj || ! obj.userData || ! obj.userData.updators ) {
+            code = -2;
+            msg = '[script edit] invalid object';
+        }
+
+        if ( code < 0 ) {
+            console.error( msg );
+            return code;
+        } else {
+            const newFunc = new Function('delta', this.monacoInstance.getValue() );
+            obj.userData.updators[ this.editScriptIndex ].archetype = newFunc.toString();
+            obj.userData.updators[ this.editScriptIndex ].func = newFunc.bind( obj );
+            console.log( newFunc );
+        }
     }
 }
 
