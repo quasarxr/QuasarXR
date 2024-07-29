@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
     "dat.gui": "^0.7.9",
     "fflate": "^0.8.2",
     "lil-gui": "^0.19.2",
