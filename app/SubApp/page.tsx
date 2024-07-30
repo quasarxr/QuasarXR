@@ -23,19 +23,28 @@ export default function Page() {
           //'./mario_animacion.glb'
           pallet._module.loadGLTF( './daft_punk_in_end_of_line_club.glb', gltf => {
             console.log( gltf );
-            gltf.scene.position.set( 0, 0.5, 0);
-            gltf.scene.scale.set( 0.1, 0.1, 0.1 );
+            gltf.scene.position.set( 0, 0.01, 0);
+            gltf.scene.scale.set( 0.03, 0.03, 0.03 );
             const mixer = new THREE.AnimationMixer( gltf.scene );
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
             action.play();
 
+            const bounding = new THREE.Box3();
             gltf.scene.traverse( object => {
               if ( object.isMesh ) {
                 object.castShadow = true;
                 object.receiveShadow = true;
+
+                console.log( object.geometry.boundingBox );
+                if ( bounding.isEmpty ) bounding.copy( object.geometry.boundingBox );
+                bounding.containsBox( object.geometry.boundingBox );
               }
             } );
+            console.log( bounding );
+            const boxSize = new THREE.Vector3();
+            bounding.getSize( boxSize );
+            console.log( boxSize );
   
             //gltf.scene.updateWorldMatrix( true, true );
             //const box3 = new THREE.Box3();

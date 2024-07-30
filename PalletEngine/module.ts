@@ -1183,7 +1183,7 @@ export class PalletEngine extends PalletElement {
         gridPlane.receiveShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
         //gridPlane.layers.set( RaycastLayer.NoRaycast );
-        this.camera.position.set( 0, 5, 5 );
+        this.camera.position.set( 0, 1.75, 5 );
         this.sceneGraph.add( gridHelper );
         this.sceneGraph.add( gridPlane );
         this.sceneGraph.userData.gridPlane = gridPlane;
