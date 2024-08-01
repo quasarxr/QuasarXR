@@ -31,12 +31,19 @@ import { PositionalAudioHelper } from 'three/examples/jsm/helpers/PositionalAudi
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 
+// vr pointer models
+import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory';
+import { OculusHandModel } from 'three/examples/jsm/webxr/OculusHandModel';
+import { OculusHandPointerModel } from 'three/examples/jsm/webxr/OculusHandPointerModel';
+
+import { World, System, Component, TagComponent, Types } from 'three/examples/jsm/libs/ecsy.module';
+
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
 let _defaultCube : THREE.Mesh;
 let _version = { major: 0, minor: 1, patch: 0, get : () => `Pallet v.${_version.major}.${_version.minor}.${_version.patch}` };
 let _product = { name : 'Pallet' };
-console.log( _version.get() );
+let _xr_initialized = false;
 
 // replace extension functions
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -101,6 +108,7 @@ export class Command {
 }
 
 class InteractionController {
+    parent : PalletElement;
     raycaster : THREE.Raycaster;
     
     constructor( option : Object ) {
@@ -420,9 +428,37 @@ class DesktopIRC extends InteractionController {
 }
 
 class VirtualRealityIRC extends InteractionController {
+    oculusHandModel : OculusHandModel;
+    oculusHandPointerModel : OculusHandPointerModel;
     constructor() {
-        super( {} );
+        super({});
     }
+    
+    createControls() {        
+        const engine = this.parent as PalletEngine;
+        const factory = new XRControllerModelFactory();
+        const xrManager = Renderer.Get().xr;
+
+        const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
+        xrControls.forEach( control => {
+            engine.sceneGraph.add( control );
+        } );
+
+        const xrGrips = [ xrManager.getControllerGrip(0), xrManager.getControllerGrip(1) ];
+        xrGrips.forEach( grip => {
+            grip.add( factory.createControllerModel( grip ) );
+            engine.sceneGraph.add( grip );
+        } );
+
+        const xrHands = [ xrManager.getHand(0), xrManager.getHand(1) ];
+        xrHands.forEach( (hand, index) => {
+            hand.add( new OculusHandModel( hand ) );
+            const pointer = new OculusHandPointerModel( hand, xrControls[index] );
+            hand.add( pointer );
+            engine.sceneGraph.add( hand );
+        } );
+    }
+
 }
 
 class CommandQueue { 
@@ -525,6 +561,7 @@ export class PalletEngine extends PalletElement {
     updateFunctions : Array<Updator>;
     commandQueue : CommandQueue;
     irc : InteractionController;
+    vrc : VirtualRealityIRC;
     screenGUI : GUI;
     contextGUI : GUI;
     contextGUIOuter : HTMLElement;
@@ -556,7 +593,11 @@ export class PalletEngine extends PalletElement {
     constructor( canvas : HTMLCanvasElement ) {
         super();
         this.sceneGraph = new THREE.Scene();
+        const pivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+        pivot.add( this.camera );
+        pivot.position.set( 0, 1.6, 0 );
+        this.sceneGraph.add( pivot );
         this.gltfLoader = new GLTFLoader();
         this.clock = new THREE.Clock(); // for debugging, optimization
         this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
@@ -585,11 +626,12 @@ export class PalletEngine extends PalletElement {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             renderer.setSize( window.innerWidth, window.innerHeight );
-        } )
+        } );
 
 
         // interaction setting
         this.irc = new DesktopIRC();
+        this.irc.parent = this;
         this.irc.connectEvent();
 
         // user interface
@@ -1183,7 +1225,7 @@ export class PalletEngine extends PalletElement {
         gridPlane.receiveShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
         //gridPlane.layers.set( RaycastLayer.NoRaycast );
-        this.camera.position.set( 0, 1.75, 5 );
+        this.camera.position.set( 0, 0, 2 );
         this.sceneGraph.add( gridHelper );
         this.sceneGraph.add( gridPlane );
         this.sceneGraph.userData.gridPlane = gridPlane;
@@ -1270,10 +1312,7 @@ export class PalletEngine extends PalletElement {
         (async () => {
             const exrLoader = new EXRLoader();
             exrLoader.load( this.hdrUrl, ( texture ) => {
-                //this.sceneGraph.background = texture;
-                texture.mapping = THREE.EquiretangularReflectionMapping;
-                console.log( texture );
-                
+                //this.sceneGraph.background = texture;                
                 const pmremGenerator = new THREE.PMREMGenerator( Renderer.Get() );
                 pmremGenerator.compileEquirectangularShader();
     
@@ -1283,7 +1322,6 @@ export class PalletEngine extends PalletElement {
                 //this.sceneGraph.background = renderTarget.texture;
             } );
         })();
-       
     }
 
     clearScene() {
@@ -1296,6 +1334,22 @@ export class PalletEngine extends PalletElement {
 
     createVREnvironment() {
         document.body.appendChild( VRButton.createButton( Renderer.Get() ) );
+
+        const engine = this;        
+        const xrManager = Renderer.Get().xr;
+
+        this.vrc = new VirtualRealityIRC();
+        this.vrc.parent = this;
+        this.vrc.createControls();
+        xrManager.addEventListener( 'sessionstart', () => {
+            this.camera.position.set( 0, 0, 0 );
+            this.camera.parent.position.set( 0, 0, 6 );
+        } );
+
+        xrManager.addEventListener( 'sessionend', () => {
+            this.camera.position.set( 0, 1.6, 0 );
+            this.camera.parent.position.set( 0, 0, 0 );
+        } );
     }
 
     loadGLTF( url : string, onload : Function ) {
@@ -1361,7 +1415,7 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.background = initialBackground;
         */
         // shadow routine end
-
+        Renderer.Get().xr.updateCamera( this.camera );
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
 
