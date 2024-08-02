@@ -428,8 +428,6 @@ class DesktopIRC extends InteractionController {
 }
 
 class VirtualRealityIRC extends InteractionController {
-    oculusHandModel : OculusHandModel;
-    oculusHandPointerModel : OculusHandPointerModel;
     constructor() {
         super({});
     }
@@ -441,13 +439,13 @@ class VirtualRealityIRC extends InteractionController {
 
         const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
         xrControls.forEach( control => {
-            engine.sceneGraph.add( control );
+            engine.camera.parent.add( control );
         } );
 
         const xrGrips = [ xrManager.getControllerGrip(0), xrManager.getControllerGrip(1) ];
         xrGrips.forEach( grip => {
             grip.add( factory.createControllerModel( grip ) );
-            engine.sceneGraph.add( grip );
+            engine.camera.parent.add( grip );
         } );
 
         const xrHands = [ xrManager.getHand(0), xrManager.getHand(1) ];
@@ -455,7 +453,7 @@ class VirtualRealityIRC extends InteractionController {
             hand.add( new OculusHandModel( hand ) );
             const pointer = new OculusHandPointerModel( hand, xrControls[index] );
             hand.add( pointer );
-            engine.sceneGraph.add( hand );
+            engine.camera.parent.add( hand );
         } );
     }
 
@@ -1415,7 +1413,6 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.background = initialBackground;
         */
         // shadow routine end
-        Renderer.Get().xr.updateCamera( this.camera );
         Renderer.Get().render( this.sceneGraph, this.camera );
     }
 
