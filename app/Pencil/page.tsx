@@ -25,7 +25,7 @@ export default function Page() {
             gltf.scene.position.set( 0, 0.2, 0 );
           } );
 
-          //engine.createVREnvironment();
+          engine.createVREnvironment();
         } );
       }
 
