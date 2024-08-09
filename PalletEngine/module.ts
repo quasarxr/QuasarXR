@@ -2,15 +2,18 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 import { Controller } from 'lil-gui';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { TransformControls, TransformControlsGizmo } from 'three/examples/jsm/controls/TransformControls';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 import { SelectionBox } from 'three/examples/jsm/interactive/SelectionBox';
 import { SelectionHelper } from 'three/examples/jsm/interactive/SelectionHelper';
 import { ImageUtils } from 'three/src/extras/ImageUtils';
+
+// effect
+//import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+//import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+//import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 
 // shadow
 import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader';
@@ -22,13 +25,13 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton';
 // monaco-editor
 import * as monaco from 'monaco-editor';
 import Editor, { loader } from '@monaco-editor/react';
-import { UUID } from 'crypto';
+// import { UUID } from 'crypto';
 
 // audio
-import { PositionalAudioHelper } from 'three/examples/jsm/helpers/PositionalAudioHelper';
+//import { PositionalAudioHelper } from 'three/examples/jsm/helpers/PositionalAudioHelper';
 
 // hdr
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+//import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 
 // vr pointer models
@@ -36,7 +39,7 @@ import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerM
 import { OculusHandModel } from 'three/examples/jsm/webxr/OculusHandModel';
 import { OculusHandPointerModel } from 'three/examples/jsm/webxr/OculusHandPointerModel';
 
-import { World, System, Component, TagComponent, Types } from 'three/examples/jsm/libs/ecsy.module';
+// import { World, System, Component, TagComponent, Types } from 'three/examples/jsm/libs/ecsy.module';
 
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
@@ -325,6 +328,7 @@ class DesktopIRC extends InteractionController {
     
     onIntersection( hits : Array<any> ) {        
         this.replaceButtonImage( undefined );
+        let eventObject = null;
         const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && !h.object.isGround );
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
             this.controls.enabled = true;
@@ -333,12 +337,13 @@ class DesktopIRC extends InteractionController {
             if ( group ) {
                 this.controls.attach( group );
                 this.context = group;
+                eventObject = group;
             } else if ( hitMeshes[0].object.isHelper ) {
-                console.log( hitMeshes[0].object );
                 this.controls.attach( hitMeshes[0].object.light );
                 this.context = hitMeshes[0].object.light;
-            }else {
+            } else {
                 const pickedObject = hitMeshes[0].object;
+                eventObject = pickedObject;
                 this.controls.attach( pickedObject );
                 this.context = hitMeshes[0].object;                
                 this.replaceButtonImage( undefined );
@@ -352,20 +357,22 @@ class DesktopIRC extends InteractionController {
                           }.bind(this))(pickedObject.material.map.image);
                     }
                 }
-
-                if ( pickedObject.userData.events ) {
-                    pickedObject.userData.events.forEach( event => {
-                     if ( event.trigger == 'click' ) {
-                        event.handler();
-                     }   
-                    } )
-                }
             }
         } else {                
             this.controls.detach();
             this.controls.enabled = false;
             this.controls.setMode( 'translate' );
             this.context = null;
+        }
+        
+        if ( eventObject ) {
+            if ( eventObject.userData.events ) {
+                eventObject.userData.events.forEach( event => {
+                    if ( event.trigger == 'click' ) {
+                       event.handler();
+                    }   
+                   } );
+            }
         }
     }
 
@@ -424,6 +431,14 @@ class DesktopIRC extends InteractionController {
             this.context.material.map = texture;
             this.context.material.needsUpdate = true;
         }
+    }
+
+    dispose() {
+
+    }
+
+    select( object : THREE.Object3D ) {
+        
     }
 }
 
@@ -492,7 +507,6 @@ export class Scene {
 }
 
 export class Renderer {
-    static composer : EffectComposer = null;
     static renderer : THREE.WebGLRenderer = null;
     static canvas : HTMLCanvasElement = null;
     static option : RenderOptions = { alpha: true } as RenderOptions;
@@ -554,6 +568,7 @@ export class PalletEngine extends PalletElement {
     directionalLight : THREE.DirectionalLight;
     ambientLight : THREE.AmbientLight;
     gltfLoader : GLTFLoader;
+    fbxLoader : FBXLoader;
     clock : THREE.Clock;
     controller : OrbitControls;
     updateFunctions : Array<Updator>;
@@ -597,6 +612,7 @@ export class PalletEngine extends PalletElement {
         pivot.position.set( 0, 1.6, 0 );
         this.sceneGraph.add( pivot );
         this.gltfLoader = new GLTFLoader();
+        this.fbxLoader = new FBXLoader();
         this.clock = new THREE.Clock(); // for debugging, optimization
         this.controller = new OrbitControls( this.camera, canvas ); // now use default camera controller
         this.controller.enableDamping = true; // smooth move to camera
@@ -938,6 +954,46 @@ export class PalletEngine extends PalletElement {
             localIRC.context.userData.updators.forEach( updator => updator.enabled = value ); 
         } );
 
+        // Settings
+
+        const settingsProps = {
+            dirLight_color : 0xffffff,
+            dirLight_intensity : 1,
+            target : () => {
+                
+            },
+            dirLight_select : () => {
+
+            },
+            ambient_color : 0xffffff,
+            ambient_intensity : 1,
+            ambient_select : () => {
+
+            }
+        };
+        const settingsFolder = this.screenGUI.addFolder( 'Settings' );
+        const g_dir_light = settingsFolder.addFolder( 'Directional Light' );
+        g_dir_light.addColor( settingsProps, 'dirLight_color' ).name('Color').onChange( value => { this.directionalLight.color.set( value ) } ).listen();
+        g_dir_light.add( settingsProps, 'dirLight_intensity', 0, 100, 1 ).name('Intensity').onChange( value => this.directionalLight.intensity = value ).listen();
+        g_dir_light.add( settingsProps, 'target' );
+        g_dir_light.add( settingsProps, 'dirLight_select' );
+
+        const g_ambient_light = settingsFolder.addFolder( "Ambient Light" );
+        g_ambient_light.addColor( settingsProps, 'ambient_color' ).name('Color').onChange( value => { this.ambientLight.color.set( value ) } ).listen();
+        g_ambient_light.add( settingsProps, 'ambient_intensity', 0, 100, 1 ).name('Intensity').onChange( value => this.ambientLight.intensity = value ).listen();
+        g_ambient_light.add( settingsProps, 'ambient_select' );
+
+        const environmentProps = {
+            Background: () => {
+
+            },
+            SkyBox : () => {
+                
+            }
+
+        }
+        const g_environment = this.screenGUI.addFolder( 'Environment' );
+
         let prevUUID = "";
 
         const clearFolder = ( folder ) => {            
@@ -951,10 +1007,19 @@ export class PalletEngine extends PalletElement {
                 temp[i].hide();
                 temp[i].destroy();
             }
-        }
+        };
+
+
 
         // ui update function
         this.addUpdator( ( delta ) => {
+
+            //global
+            settingsProps.dirLight_color = this.directionalLight.color.getHex();
+            settingsProps.dirLight_intensity = this.directionalLight.intensity;
+            settingsProps.ambient_color = this.ambientLight.color.getHex();
+            settingsProps.ambient_intensity = this.ambientLight.intensity;
+
             const obj = localIRC.context;
 
             if ( obj ) {
@@ -1229,7 +1294,7 @@ export class PalletEngine extends PalletElement {
         this.sceneGraph.userData.gridPlane = gridPlane;
         this.sceneGraph.userData.gridHelper = gridHelper;
 
-        this.directionalLight = new THREE.DirectionalLight( 0xffffff, 10 );
+        this.directionalLight = new THREE.DirectionalLight( 0x94f8ff, 4 );
 
         this.directionalLight.castShadow = true;
         this.directionalLight.shadow.camera.right = 25;
@@ -1243,62 +1308,15 @@ export class PalletEngine extends PalletElement {
         this.directionalLight.position.set( 0, 125, 0 );
 
         this.sceneGraph.add( this.directionalLight );
-        this.ambientLight = new THREE.AmbientLight( 0xfff8e8 );
+        this.ambientLight = new THREE.AmbientLight( 0x6ebad4 );
+        this.ambientLight.intensity = 15;
         this.sceneGraph.add( this.ambientLight );
 
         this.sceneGraph.add( this.helperGroup );
 
-        //create temporal object
-        
-
-        const cube = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
-        cube.position.set( 3, 0.5, -5 );
-        this.sceneGraph.add( cube );
-        _defaultCube = cube;
-        _defaultCube.receiveShadow = true;
-        _defaultCube.castShadow = true;
-        _defaultCube.userData.updators = [];
-        _defaultCube.userData.events = [];
-        let updator = this.addUpdator( function( delta ) { 
-            this.rotation.x += 0.01;
-            this.rotation.y += 0.01;
-        }, cube );
-        _defaultCube.userData.updators.push( updator );
-        
-        if ( true ) {
-            const listener = new THREE.AudioListener();
-            const audio = new THREE.PositionalAudio( listener );
-            this.camera.add( listener );
-            this.loadAudio( './Around_the_World.mp3', buffer => {
-                audio.setBuffer( buffer );
-                audio.autoplay = true;
-                audio.loop = true;
-                //const helper = new PositionalAudioHelper( audio, 10 );
-                //this.sceneGraph.add( helper );    
-            } );
-                        
-            let event : RaycastEvent = { trigger : 'click', handler : () => { 
-                console.log( '!!' );
-                if ( ! audio.isPlaying )
-                    audio.play();
-                else
-                    audio.stop();
-            }, uuid : generateUUID() };
-            _defaultCube.userData.events.push( event );   
-        }     
-
-        const cube1 = new THREE.Mesh( new THREE.BoxGeometry( 1, 1, 1 ), new THREE.MeshStandardMaterial( { color: 0xffdfba } ) );
-        cube1.position.set( -3, 0.5, -5 );
-        this.sceneGraph.add( cube1 );
-        cube1.receiveShadow = true;
-        cube1.castShadow = true;
-        cube1.userData.updators = [];
-        cube1.userData.events = [];
-        updator = this.addUpdator( function( delta ) { 
-            this.rotation.x += 0.01;
-            this.rotation.z += 0.01;
-        }, cube1 );
-        cube1.userData.updators.push( updator );
+        const listener = new THREE.AudioListener();
+        this.camera.add( listener );
+        this.camera.userData.listener = listener;
 
         // enable all layer
         for ( let key in RaycastLayer ) {
@@ -1341,7 +1359,7 @@ export class PalletEngine extends PalletElement {
         this.vrc.createControls();
         xrManager.addEventListener( 'sessionstart', () => {
             this.camera.position.set( 0, 0, 0 );
-            this.camera.parent.position.set( 0, 0, 6 );
+            this.camera.parent.position.set( 0, 0, 2 );
         } );
 
         xrManager.addEventListener( 'sessionend', () => {
@@ -1355,6 +1373,13 @@ export class PalletEngine extends PalletElement {
             onload( gltf );
             this.sceneGraph.add( gltf.scene );
         }, /* onProgress, onError */ );
+    }
+
+    loadFBX( url : string, onload : Function, option : Object = null ) {
+        this.fbxLoader.load( url, model => {
+            onload( model );
+            this.sceneGraph.add( model );
+        } )
     }
 
     loadAudio( url: string, onload : Function ) {
@@ -1487,6 +1512,13 @@ export class PalletEngine extends PalletElement {
             obj.userData.updators[ this.editScriptIndex ].func = newFunc.bind( obj );
             console.log( newFunc );
         }
+    }
+
+    attachRaycastEvent( object : THREE.Object3D, data : RaycastEvent ) {
+        let event : RaycastEvent = { trigger : data.trigger , handler : data.handler, uuid : data.uuid ? data.uuid : generateUUID() };
+        if ( ! object.userData.events ) object.userData.events = []
+        object.userData.events.push( event );
+        console.log( object.userData.events );
     }
 }
 

@@ -20,11 +20,11 @@ export default function Page() {
       if ( PalletPromise === null ) {
         PalletPromise = import( '../../PalletEngine/module' );
         PalletPromise.then( pallet => {
+          const engine = pallet._module;
           //'./mario_animacion.glb'
-          pallet._module.loadGLTF( './daft_punk_in_end_of_line_club.glb', gltf => {
-            console.log( gltf );
-            gltf.scene.position.set( 0, 0.01, 0);
-            gltf.scene.scale.set( 0.03, 0.03, 0.03 );
+          engine.loadGLTF( './daft_punk_in_end_of_line_club.glb', gltf => {
+            gltf.scene.position.set( 0, 0.15, 0);
+            gltf.scene.scale.set( 0.05, 0.05, 0.05 );
             const mixer = new THREE.AnimationMixer( gltf.scene );
             // ** findout bounding box at load frame
             const action = mixer.clipAction( gltf.animations[0] );
@@ -59,16 +59,82 @@ export default function Page() {
             //   }
             // } );
             // const box3Helper = new THREE.Box3Helper( box3, 0x00ff00 );
-            //pallet._module.sceneGraph.add( box3Helper );
+            //engine.sceneGraph.add( box3Helper );
             gltf.scene.userData.mixer = mixer;
             gltf.scene.userData.action = action;
-            gltf.scene.userData.updator = pallet._module.addUpdator( dt => {
+            gltf.scene.userData.updator = engine.addUpdator( dt => {
               //box3Helper.box.makeEmpty();
               //box3Helper.box.setFromObject( gltf.scene, true );
               mixer.update( dt );
-            }, gltf.scene );            
+            }, gltf.scene );
           } );
-          pallet._module.createVREnvironment();
+
+          engine.loadGLTF( './speaker.glb', gltf => {
+            gltf.scene.position.set( 3, 1, 0 );
+            gltf.scene.scale.set( 0.5, 0.5, 0.5 );
+            gltf.scene.rotation.set( 1.57, 0, 0 );
+
+            const speaker = gltf.scene.clone();
+            speaker.position.set( -3, 1, 0 );
+
+            engine.sceneGraph.add( speaker );
+
+            if ( true ) {
+              const audio = new THREE.PositionalAudio( engine.camera.userData.listener );
+              const audio1 = new THREE.PositionalAudio( engine.camera.userData.listener );
+              gltf.scene.add( audio );
+              speaker.add( audio1 );
+              engine.loadAudio( './Around_the_World.mp3', buffer => {
+                  audio.setBuffer( buffer );
+                  audio.autoplay = true;
+                  audio.loop = true;
+
+                  audio1.setBuffer( buffer );
+                  audio1.autoplay = true;
+                  audio1.loop = true;
+                  //const helper = new PositionalAudioHelper( audio, 10 );
+                  //this.sceneGraph.add( helper );    
+              } );
+
+              engine.attachRaycastEvent( gltf.scene, { trigger: 'click', handler: () => { 
+                if ( ! audio.isPlaying ) {
+                  audio.play();
+                  audio1.play();
+                }
+                else {
+                  audio.stop();
+                  audio1.stop();
+                }
+              }, undefined } );
+
+              engine.attachRaycastEvent( speaker, { trigger: 'click', handler: () => { 
+                if ( ! audio.isPlaying ) {
+                  audio.play();
+                  audio1.play();
+                }
+                else {
+                  audio.stop();
+                  audio1.stop();
+                }
+              }, undefined } );
+            }
+          } );
+
+          // engine.loadFBX( './Rig_Dance05.fbx', fbx => {
+          //   console.log( fbx );
+          //   if ( fbx.animations && fbx.animations.length ) {
+          //     const mixer = new THREE.AnimationMixer( fbx );
+          //     const action = mixer.clipAction( fbx.animations[0] );
+          //     action.play();
+
+          //     fbx.userData.mixer = mixer;
+          //     fbx.userData.action = action;
+          //     fbx.userData.updator = engine.addUpdator( dt => {
+          //       mixer.update( dt );
+          //     }, fbx );
+          //   }
+          // } );
+          engine.createVREnvironment();
         } );
       }
 
