@@ -529,7 +529,7 @@ class VirtualRealityIRC extends InteractionController {
         const x = uv.x * texture.image.width;
         const y = (1 - uv.y) * texture.image.height;
 
-        const ctx = texture.canvas.getContext('2d');
+        const ctx = texture.source.data.getContext('2d');
         ctx.fillStyle = 'black';
         ctx.beginPath();
         ctx.arc( x, y, 10, 0, 2 * Math.PI );
@@ -1448,11 +1448,11 @@ export class PalletEngine extends PalletElement {
                 const intersections2 = engine.vrc.getIntersections( xrManager.getController(0), interactions[1] );
 
                 if ( intersections1.length > 0 ) {
-                    engine.vrc.drawOnTexture( intersections1[0], intersections1[0].material.map );
+                    engine.vrc.drawOnTexture( intersections1[0], intersections1[0].object.material.map );
                 }
 
                 if ( intersections2.length > 0 ) {
-                    engine.vrc.drawOnTexture( intersections2[0], intersections2[0].material.map );
+                    engine.vrc.drawOnTexture( intersections2[0], intersections2[0].object.material.map );
                 }
             } );
         }
