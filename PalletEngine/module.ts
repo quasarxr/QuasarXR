@@ -145,6 +145,7 @@ class DesktopIRC extends InteractionController {
     materialFolder : GUI;
     textureButton : Controller;
     targetMaterial : THREE.Material;
+    isDrawing : boolean;
 
     constructor() {
         super({});
@@ -156,9 +157,11 @@ class DesktopIRC extends InteractionController {
         this.materialFolder = undefined;
         this.textureButton = undefined;
         this.targetMaterial = null;
-
+        
         this.cursorStart = new THREE.Vector2();
         this.cursorEnd = new THREE.Vector2();
+
+        this.isDrawing = false;
     }
 
     drawGhost() {
@@ -166,7 +169,8 @@ class DesktopIRC extends InteractionController {
     }
 
     connectEvent() {
-        document.addEventListener( 'mousedown', event => {            
+        document.addEventListener( 'mousedown', event => {
+            this.isDrawing = true;            
             this.cursorStart.set( event.clientX, event.clientY );
             if ( this.shiftPressed ) {
                 _module.controller.enabled = false;
@@ -189,6 +193,44 @@ class DesktopIRC extends InteractionController {
                     - ( event.clientY / window.innerHeight ) * 2 + 1,
                     0.5
                 );
+            }
+
+            function drawOnTexture( intersection, texture ) {
+                const uv = intersection.uv;
+                const x = uv.x * texture.image.width;
+                const y = (1 - uv.y) * texture.image.height;
+
+                const ctx = texture.source.data.getContext('2d');
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc( x, y, 10, 0, 2 * Math.PI );
+                ctx.fill();
+                texture.needsUpdate = true;
+            }
+
+            if ( this.isDrawing ) {
+                this.raycaster.setFromCamera( this.getViewportPos( event.clientX, event.clientY ) , _module.camera );
+                const canvasTextureMeshes = [];
+                _module.sceneGraph.traverse( object => {
+                    if ( object.isMesh ) {
+                        if ( object.material ) {
+                            if ( object.material.map ) {
+                                if ( object.material.map.isCanvasTexture ) {
+                                    canvasTextureMeshes.push( object );
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                } );
+                console.log( canvasTextureMeshes );
+                canvasTextureMeshes.forEach( object => {
+                    const hits = this.raycaster.intersectObject( object );
+                    console.log( hits );
+                    if ( hits.length > 0 ) {
+                        drawOnTexture( hits[0], hits[0].object.material.map );
+                    }
+                } );
             }
         } );
 
@@ -231,6 +273,8 @@ class DesktopIRC extends InteractionController {
                         break;
                 }
             }
+
+            this.isDrawing = false;
         } );
 
         document.addEventListener( 'keydown', event => {
@@ -443,8 +487,12 @@ class DesktopIRC extends InteractionController {
 }
 
 class VirtualRealityIRC extends InteractionController {
+    isDrawing : boolean;
+
     constructor() {
         super({});
+
+        this.isDrawing = false;
     }
     
     createControls() {        
@@ -470,8 +518,35 @@ class VirtualRealityIRC extends InteractionController {
             hand.add( pointer );
             engine.camera.parent.add( hand );
         } );
+
+        xrControls[0].addEventListener('selectstart', event => { this.isDrawing = true } );
+        xrControls[0].addEventListener('selectend', event => { this.isDrawing = false } );
     }
 
+    drawOnTexture( intersection, texture ) {
+        if ( !this.isDrawing ) return;
+        const uv = intersection.uv;
+        const x = uv.x * texture.image.width;
+        const y = (1 - uv.y) * texture.image.height;
+
+        const ctx = texture.canvas.getContext('2d');
+        ctx.fillStyle = 'black';
+        ctx.beginPath();
+        ctx.arc( x, y, 10, 0, 2 * Math.PI );
+        ctx.fill();
+        texture.needsUpdate = true;
+    }
+
+    getIntersections( controller, target ) {
+        const tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+        return raycaster.intersectObject(target);
+    }
 }
 
 class CommandQueue { 
@@ -1348,7 +1423,7 @@ export class PalletEngine extends PalletElement {
 
     }
 
-    createVREnvironment() {
+    createVREnvironment( interactions = null ) {
         document.body.appendChild( VRButton.createButton( Renderer.Get(), { requiredFeatures: ['hand-tracking'] } ) );
 
         const engine = this;        
@@ -1366,6 +1441,21 @@ export class PalletEngine extends PalletElement {
             this.camera.position.set( 0, 1.6, 0 );
             this.camera.parent.position.set( 0, 0, 0 );
         } );
+        
+        if ( interactions ) {
+            engine.addUpdator( delta => {
+                const intersections1 = engine.vrc.getIntersections( xrManager.getController(0), interactions[0] );
+                const intersections2 = engine.vrc.getIntersections( xrManager.getController(0), interactions[1] );
+
+                if ( intersections1.length > 0 ) {
+                    engine.vrc.drawOnTexture( intersections1[0], intersections1[0].material.map );
+                }
+
+                if ( intersections2.length > 0 ) {
+                    engine.vrc.drawOnTexture( intersections2[0], intersections2[0].material.map );
+                }
+            } );
+        }
     }
 
     loadGLTF( url : string, onload : Function ) {
