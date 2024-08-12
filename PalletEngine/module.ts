@@ -169,6 +169,24 @@ class DesktopIRC extends InteractionController {
     }
 
     connectEvent() {
+        const findCanvasTexture = () => {
+            const canvasTexObjs = [];
+            _module.sceneGraph.traverse( object => {
+                if ( object.isMesh ) {
+                    if ( object.material ) {
+                        if ( object.material.map ) {
+                            if ( object.material.map.isCanvasTexture ) {
+                                canvasTexObjs.push( object );
+                            }
+                        }
+                    }
+                }
+            } );
+            return canvasTexObjs;
+        }
+
+        const uvPosition = new THREE.Vector2();
+
         document.addEventListener( 'mousedown', event => {
             this.isDrawing = true;            
             this.cursorStart.set( event.clientX, event.clientY );
@@ -182,7 +200,21 @@ class DesktopIRC extends InteractionController {
                     - ( event.clientY / window.innerHeight ) * 2 + 1,
                     0.5
                 );
-            } else this.selectionHelper.enabled = false;
+            } else {
+                this.selectionHelper.enabled = false;
+            }
+            
+            const canvasTextureMeshes = findCanvasTexture();
+            if ( canvasTextureMeshes.length > 0 ) {
+                this.raycaster.setFromCamera( this.getViewportPos( event.clientX, event.clientY ) , _module.camera );
+                const hits = this.raycaster.intersectObjects( [ ...canvasTextureMeshes ] );
+                if ( hits.length > 0 ) {                    
+                    const uv = hits[0].uv;
+                    const x = uv.x * hits[0].object.material.map.image.width;
+                    const y = (1 - uv.y) * hits[0].object.material.map.image.height;
+                    uvPosition.set( x, y );
+                }
+            }
         } );
 
         // dragging handler
@@ -195,42 +227,29 @@ class DesktopIRC extends InteractionController {
                 );
             }
 
-            function drawOnTexture( intersection, texture ) {
+            const drawOnTexture = ( intersection, texture ) => {
                 const uv = intersection.uv;
                 const x = uv.x * texture.image.width;
                 const y = (1 - uv.y) * texture.image.height;
 
                 const ctx = texture.source.data.getContext('2d');
-                ctx.fillStyle = 'black';
-                ctx.beginPath();
-                ctx.arc( x, y, 10, 0, 2 * Math.PI );
-                ctx.fill();
+                ctx.moveTo( uvPosition.x, uvPosition.y );
+                ctx.strokeStyle = 'black';
+                ctx.lineTo( x, y );
+                ctx.stroke();
+                uvPosition.set( x, y );
                 texture.needsUpdate = true;
-            }
+            };
 
             if ( this.isDrawing ) {
+                const canvasTextureMeshes = findCanvasTexture();
                 this.raycaster.setFromCamera( this.getViewportPos( event.clientX, event.clientY ) , _module.camera );
-                const canvasTextureMeshes = [];
-                _module.sceneGraph.traverse( object => {
-                    if ( object.isMesh ) {
-                        if ( object.material ) {
-                            if ( object.material.map ) {
-                                if ( object.material.map.isCanvasTexture ) {
-                                    canvasTextureMeshes.push( object );
-                                }
-                            }
-                        }
-                    }
-                    return false;
-                } );
-                console.log( canvasTextureMeshes );
-                canvasTextureMeshes.forEach( object => {
-                    const hits = this.raycaster.intersectObject( object );
-                    console.log( hits );
+                if ( canvasTextureMeshes.length > 0 ) {
+                    const hits = this.raycaster.intersectObjects( [ ...canvasTextureMeshes ] );
                     if ( hits.length > 0 ) {
                         drawOnTexture( hits[0], hits[0].object.material.map );
                     }
-                } );
+                }
             }
         } );
 
@@ -488,10 +507,12 @@ class DesktopIRC extends InteractionController {
 
 class VirtualRealityIRC extends InteractionController {
     isDrawing : boolean;
+    uvPosition : THREE.Vector2;
 
     constructor() {
         super({});
 
+        this.uvPosition = new THREE.Vector2();
         this.isDrawing = false;
     }
     
@@ -499,6 +520,23 @@ class VirtualRealityIRC extends InteractionController {
         const engine = this.parent as PalletEngine;
         const factory = new XRControllerModelFactory();
         const xrManager = Renderer.Get().xr;
+
+        
+        const findCanvasTexture = () => {
+            const canvasTexObjs = [];
+            _module.sceneGraph.traverse( object => {
+                if ( object.isMesh ) {
+                    if ( object.material ) {
+                        if ( object.material.map ) {
+                            if ( object.material.map.isCanvasTexture ) {
+                                canvasTexObjs.push( object );
+                            }
+                        }
+                    }
+                }
+            } );
+            return canvasTexObjs;
+        }
 
         const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
         xrControls.forEach( control => {
@@ -519,25 +557,36 @@ class VirtualRealityIRC extends InteractionController {
             engine.camera.parent.add( hand );
         } );
 
-        xrControls[0].addEventListener('selectstart', event => { this.isDrawing = true } );
+        xrControls[0].addEventListener('selectstart', event => {
+            this.isDrawing = true;
+            const canvasTextureObjs = findCanvasTexture();
+            const intersections = this.getIntersections( xrManager.getController(0), canvasTextureObjs );
+            if ( intersections.length > 0 ) {
+                const uv = intersections[0].uv;
+                const texture = intersections[0].object.material.map;
+                const x = uv.x * texture.image.width;
+                const y = (1 - uv.y) * texture.image.height;
+                this.uvPosition.set( x, y );
+            }
+        } );
         xrControls[0].addEventListener('selectend', event => { this.isDrawing = false } );
     }
 
     drawOnTexture( intersection, texture ) {
-        if ( !this.isDrawing ) return;
         const uv = intersection.uv;
         const x = uv.x * texture.image.width;
         const y = (1 - uv.y) * texture.image.height;
 
         const ctx = texture.source.data.getContext('2d');
-        ctx.fillStyle = 'black';
-        ctx.beginPath();
-        ctx.arc( x, y, 10, 0, 2 * Math.PI );
-        ctx.fill();
+        ctx.moveTo( this.uvPosition.x, this.uvPosition.y );
+        ctx.strokeStyle = 'black';
+        ctx.lineTo( x, y );
+        ctx.stroke();
+        this.uvPosition.set( x, y );
         texture.needsUpdate = true;
     }
 
-    getIntersections( controller, target ) {
+    getIntersections( controller, targets ) {
         const tempMatrix = new THREE.Matrix4();
         tempMatrix.identity().extractRotation(controller.matrixWorld);
 
@@ -545,7 +594,7 @@ class VirtualRealityIRC extends InteractionController {
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-        return raycaster.intersectObject(target);
+        return raycaster.intersectObjects(targets);
     }
 }
 
@@ -1444,8 +1493,8 @@ export class PalletEngine extends PalletElement {
         
         if ( interactions ) {
             engine.addUpdator( delta => {
-                const intersections1 = engine.vrc.getIntersections( xrManager.getController(0), interactions[0] );
-                const intersections2 = engine.vrc.getIntersections( xrManager.getController(0), interactions[1] );
+                const intersections1 = engine.vrc.getIntersections( xrManager.getController(0), interactions );
+                const intersections2 = engine.vrc.getIntersections( xrManager.getController(0), interactions );
 
                 if ( intersections1.length > 0 ) {
                     engine.vrc.drawOnTexture( intersections1[0], intersections1[0].object.material.map );
