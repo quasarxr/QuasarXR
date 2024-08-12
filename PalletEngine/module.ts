@@ -557,10 +557,10 @@ class VirtualRealityIRC extends InteractionController {
             engine.camera.parent.add( hand );
         } );
 
-        xrControls[0].addEventListener('selectstart', event => {
+        xrControls[1].addEventListener('selectstart', event => {
             this.isDrawing = true;
             const canvasTextureObjs = findCanvasTexture();
-            const intersections = this.getIntersections( xrManager.getController(0), canvasTextureObjs );
+            const intersections = this.getIntersections( xrControls[1], canvasTextureObjs );
             if ( intersections.length > 0 ) {
                 const uv = intersections[0].uv;
                 const texture = intersections[0].object.material.map;
@@ -569,7 +569,7 @@ class VirtualRealityIRC extends InteractionController {
                 this.uvPosition.set( x, y );
             }
         } );
-        xrControls[0].addEventListener('selectend', event => { this.isDrawing = false } );
+        xrControls[1].addEventListener('selectend', event => { this.isDrawing = false } );
     }
 
     drawOnTexture( intersection, texture ) {
@@ -1493,15 +1493,12 @@ export class PalletEngine extends PalletElement {
         
         if ( interactions ) {
             engine.addUpdator( delta => {
-                const intersections1 = engine.vrc.getIntersections( xrManager.getController(0), interactions );
-                const intersections2 = engine.vrc.getIntersections( xrManager.getController(0), interactions );
-
-                if ( intersections1.length > 0 ) {
-                    engine.vrc.drawOnTexture( intersections1[0], intersections1[0].object.material.map );
-                }
-
-                if ( intersections2.length > 0 ) {
-                    engine.vrc.drawOnTexture( intersections2[0], intersections2[0].object.material.map );
+                if ( this.vrc.isDrawing ) {
+                    const intersections1 = engine.vrc.getIntersections( xrManager.getController(1), interactions );
+            
+                    if ( intersections1.length > 0 ) {
+                        engine.vrc.drawOnTexture( intersections1[0], intersections1[0].object.material.map );
+                    }
                 }
             } );
         }
