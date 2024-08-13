@@ -689,6 +689,7 @@ export class PalletEngine extends PalletElement {
     
     sceneGraph : THREE.Scene;
     camera : THREE.PerspectiveCamera;
+    cameraPivot : THREE.Object3D;
     directionalLight : THREE.DirectionalLight;
     ambientLight : THREE.AmbientLight;
     gltfLoader : GLTFLoader;
@@ -723,6 +724,7 @@ export class PalletEngine extends PalletElement {
     monacoInstance : monaco.editor.IStandaloneCodeEditor;
     editorElement : HTMLElement;    
     editScriptIndex : number;
+    
 
     // hdr
     hdrUrl : string;
@@ -730,11 +732,10 @@ export class PalletEngine extends PalletElement {
     constructor( canvas : HTMLCanvasElement ) {
         super();
         this.sceneGraph = new THREE.Scene();
-        const pivot = new THREE.Object3D();
+        this.cameraPivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-        pivot.add( this.camera );
-        pivot.position.set( 0, 1.6, 0 );
-        this.sceneGraph.add( pivot );
+        this.sceneGraph.add( this.camera );
+        this.sceneGraph.add( this.cameraPivot );
         this.gltfLoader = new GLTFLoader();
         this.fbxLoader = new FBXLoader();
         this.clock = new THREE.Clock(); // for debugging, optimization
@@ -743,6 +744,9 @@ export class PalletEngine extends PalletElement {
         this.controller.dampingFactor = 0.1;
         this.controller.minDistance = 1;
         this.controller.maxDistance = 100;
+        this.camera.position.set( -3, 1.6, -2 );
+        this.controller.target.set( 0, 1.6, -1 );
+        this.controller.update();
         this.updateFunctions = new Array<Updator>(); // 
         this.commandQueue = new CommandQueue(); // for customize events
         
@@ -1412,7 +1416,6 @@ export class PalletEngine extends PalletElement {
         gridPlane.receiveShadow = true;
         gridPlane.rotation.set( -1.57, 0, 0 );
         //gridPlane.layers.set( RaycastLayer.NoRaycast );
-        this.camera.position.set( 0, 0, 2 );
         this.sceneGraph.add( gridHelper );
         this.sceneGraph.add( gridPlane );
         this.sceneGraph.userData.gridPlane = gridPlane;
@@ -1483,12 +1486,14 @@ export class PalletEngine extends PalletElement {
         this.vrc.createControls();
         xrManager.addEventListener( 'sessionstart', () => {
             this.camera.position.set( 0, 0, 0 );
-            this.camera.parent.position.set( 0, 0, 2 );
+            this.cameraPivot.position.set( 2.3, 1.6, -4 );
+            this.cameraPivot.add( this.camera );
         } );
 
         xrManager.addEventListener( 'sessionend', () => {
             this.camera.position.set( 0, 1.6, 0 );
-            this.camera.parent.position.set( 0, 0, 0 );
+            this.cameraPivot.position.set( 0, 0, 0 );
+            this.sceneGraph.add( this.camera );
         } );
         
         if ( interactions ) {
