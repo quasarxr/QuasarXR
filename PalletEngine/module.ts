@@ -1479,7 +1479,7 @@ export class PalletEngine extends PalletElement {
     }
 
     createVREnvironment( interactions = null ) {
-        document.body.appendChild( VRButton.createButton( Renderer.Get(), {  } ) );
+        document.body.appendChild( VRButton.createButton( Renderer.Get(), { requiredFeatures: ['hand-tracking'] } ) );
 
         const engine = this;        
         const xrManager = Renderer.Get().xr;
