@@ -1488,12 +1488,14 @@ export class PalletEngine extends PalletElement {
         this.vrc.parent = this;
         this.vrc.createControls();
         xrManager.addEventListener( 'sessionstart', () => {
+            this.controller.enabled = false;
             this.camera.position.set( 0, 0, 0 );
             this.cameraPivot.position.set( 2.3, 0, -4 );
             this.cameraPivot.add( this.camera );
         } );
 
         xrManager.addEventListener( 'sessionend', () => {
+            this.controller.enabled = true;
             this.camera.position.set( 0, 1.6, 0 );
             this.cameraPivot.position.set( 0, 0, 0 );
             this.sceneGraph.add( this.camera );
