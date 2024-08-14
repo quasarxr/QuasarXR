@@ -540,7 +540,7 @@ class VirtualRealityIRC extends InteractionController {
 
         const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
         xrControls.forEach( control => {
-            engine.camera.add( control );
+            engine.cameraPivot.add( control );
             const geometry = new THREE.BufferGeometry();
             geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
             control.add( new THREE.Line( geometry ) );
@@ -549,7 +549,7 @@ class VirtualRealityIRC extends InteractionController {
         const xrGrips = [ xrManager.getControllerGrip(0), xrManager.getControllerGrip(1) ];
         xrGrips.forEach( grip => {
             grip.add( factory.createControllerModel( grip ) );
-            engine.camera.add( grip );
+            engine.cameraPivot.add( grip );
         } );
 
         const xrHands = [ xrManager.getHand(0), xrManager.getHand(1) ];
@@ -557,7 +557,7 @@ class VirtualRealityIRC extends InteractionController {
             hand.add( new OculusHandModel( hand ) );
             const pointer = new OculusHandPointerModel( hand, xrControls[index] );
             hand.add( pointer );
-            engine.camera.add( hand );
+            engine.cameraPivot.add( hand );
         } );
 
         xrControls[1].addEventListener('selectstart', event => {
@@ -1479,7 +1479,7 @@ export class PalletEngine extends PalletElement {
     }
 
     createVREnvironment( interactions = null ) {
-        document.body.appendChild( VRButton.createButton( Renderer.Get(), { requiredFeatures: ['hand-tracking'] } ) );
+        document.body.appendChild( VRButton.createButton( Renderer.Get(), {  } ) );
 
         const engine = this;        
         const xrManager = Renderer.Get().xr;
