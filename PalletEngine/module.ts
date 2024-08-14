@@ -541,17 +541,15 @@ class VirtualRealityIRC extends InteractionController {
         const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
         xrControls.forEach( control => {
             engine.camera.parent.add( control );
+            const geometry = new THREE.BufferGeometry();
+            geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
+            control.add( new THREE.Line( geometry ) );
         } );
 
         const xrGrips = [ xrManager.getControllerGrip(0), xrManager.getControllerGrip(1) ];
         xrGrips.forEach( grip => {
             grip.add( factory.createControllerModel( grip ) );
             engine.camera.parent.add( grip );
-            const geometry = new THREE.CylinderGeometry( 0.1 , 0.5, 20, 20 );
-            const material = new THREE.MeshStandardMaterial( { color: 0x00ff00 } );
-            const mesh = new THREE.Mesh( geometry, material );
-            mesh.rotation.set( - Math.PI * 0.5, 0, 0 );
-            grip.add( mesh );
         } );
 
         const xrHands = [ xrManager.getHand(0), xrManager.getHand(1) ];
