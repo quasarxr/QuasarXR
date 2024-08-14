@@ -540,7 +540,7 @@ class VirtualRealityIRC extends InteractionController {
 
         const xrControls = [ xrManager.getController(0), xrManager.getController(1) ];
         xrControls.forEach( control => {
-            engine.camera.parent.add( control );
+            engine.camera.add( control );
             const geometry = new THREE.BufferGeometry();
             geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
             control.add( new THREE.Line( geometry ) );
@@ -549,7 +549,7 @@ class VirtualRealityIRC extends InteractionController {
         const xrGrips = [ xrManager.getControllerGrip(0), xrManager.getControllerGrip(1) ];
         xrGrips.forEach( grip => {
             grip.add( factory.createControllerModel( grip ) );
-            engine.camera.parent.add( grip );
+            engine.camera.add( grip );
         } );
 
         const xrHands = [ xrManager.getHand(0), xrManager.getHand(1) ];
@@ -557,7 +557,7 @@ class VirtualRealityIRC extends InteractionController {
             hand.add( new OculusHandModel( hand ) );
             const pointer = new OculusHandPointerModel( hand, xrControls[index] );
             hand.add( pointer );
-            engine.camera.parent.add( hand );
+            engine.camera.add( hand );
         } );
 
         xrControls[1].addEventListener('selectstart', event => {
