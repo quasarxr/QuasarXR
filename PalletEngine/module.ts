@@ -15,6 +15,8 @@ import { ImageUtils } from 'three/src/extras/ImageUtils';
 //import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 //import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 
+import { Pane } from 'tweakpane';
+
 // shadow
 import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader';
 import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader';
@@ -40,6 +42,16 @@ import { OculusHandModel } from 'three/examples/jsm/webxr/OculusHandModel';
 import { OculusHandPointerModel } from 'three/examples/jsm/webxr/OculusHandPointerModel';
 
 // import { World, System, Component, TagComponent, Types } from 'three/examples/jsm/libs/ecsy.module';
+
+// utils
+import EventEmitter from './gui/event';
+import PalletGUI from './gui/module';
+import FileUtil from './utils/file';
+//import MathUtil from './utils/math';
+
+function mixin( target, ...sources ) {
+    Object.assign( target.prototype, ...sources );
+}
 
 let _useWebGPU : Boolean = false;
 let _pointer : THREE.Vector2 = new THREE.Vector2();
@@ -370,11 +382,11 @@ class DesktopIRC extends InteractionController {
             //this.controls.enabled = false;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             if ( hitMeshes[0].object.isGround ) {
-                this.enableContextGUI( position, 'add' );
+                //this.enableContextGUI( position, 'add' );
             } else if ( hitMeshes[0].object.isHelper ) {
-                this.enableContextGUI( position, 'light' );
+                //this.enableContextGUI( position, 'light' );
             } else {
-                this.enableContextGUI( position, 'property' );
+                //this.enableContextGUI( position, 'property' );
             }
             if ( group ) {
                 this.context = group;
@@ -384,7 +396,7 @@ class DesktopIRC extends InteractionController {
             this.hitPoint.copy( hitMeshes[0].point );
         } else { // hangs nothing
             this.context = null;
-            this.enableContextGUI( position, 'add' );
+            //this.enableContextGUI( position, 'add' );
             //this.disableContextGUI();
         }
     }
@@ -445,23 +457,11 @@ class DesktopIRC extends InteractionController {
     }
 
     enableContextGUI( position : THREE.Vector2, mode : string ) {
-        this.contextGUI.style.visibility = 'visible';
-        if ( position ) {
-            this.contextGUI.style.left = `${position.x}px`;
-            this.contextGUI.style.top = `${position.y}px`;
-        }
 
-        _module.contextGUI.children.forEach( c => {
-            if ( c['_title'].toLowerCase() == mode ) {
-                c.show();
-            } else {
-                c.hide();
-            }
-        } )
     }
 
     disableContextGUI() {
-        this.contextGUI.style.visibility = 'hidden';
+
     }
 
     replaceButtonImage( source ) {
@@ -618,21 +618,6 @@ class CommandQueue {
     }
 }
 
-export class Scene {
-
-    root : THREE.Scene;
-    animationObjects : THREE.Group;
-
-    constructor() {
-        this.root = new THREE.Scene();
-        this.animationObjects = new THREE.Group();
-    }
-
-    defaultScene() {
-
-    }
-}
-
 export class Renderer {
     static renderer : THREE.WebGLRenderer = null;
     static canvas : HTMLCanvasElement = null;
@@ -668,27 +653,7 @@ class PalletElement extends HTMLElement {
     }
 }
 
-class Utility {
-    constructor() {
-
-    }
-
-    static FileSelector( multiple : boolean = false ) {
-        const f = document.createElement( 'input' );
-        f.setAttribute( 'type', 'file' );
-        f.setAttribute( 'multiple', `${multiple}` );
-        //f.setAttribute( 'accept', accept );
-        //f.addEventListener('change', ( event ) => callback( f ) );
-        f.click();
-        return f;
-    }
-    
-    static FileExtension( path ) {
-
-    }
-}
-
-export class PalletEngine extends PalletElement {
+class PalletEngine extends PalletElement {
     
     sceneGraph : THREE.Scene;
     camera : THREE.PerspectiveCamera;
@@ -703,9 +668,6 @@ export class PalletEngine extends PalletElement {
     commandQueue : CommandQueue;
     irc : InteractionController;
     vrc : VirtualRealityIRC;
-    screenGUI : GUI;
-    contextGUI : GUI;
-    contextGUIOuter : HTMLElement;
 
     // shader
     shadowGroup : THREE.Group;
@@ -726,8 +688,7 @@ export class PalletEngine extends PalletElement {
     // monaco-editor
     monacoInstance : monaco.editor.IStandaloneCodeEditor;
     editorElement : HTMLElement;    
-    editScriptIndex : number;
-    
+    editScriptIndex : number;    
 
     // hdr
     hdrUrl : string;
@@ -780,21 +741,21 @@ export class PalletEngine extends PalletElement {
         this.irc.connectEvent();
 
         // user interface
-        this.screenGUI = new GUI( { title : 'Properties' } );
-        this.screenGUI.close();
-        this.contextGUIOuter = document.createElement( 'div' );
-        this.contextGUIOuter.addEventListener( 'mouseup', event => event.stopPropagation() ); // prevent pass event to document
+        //this.screenGUI = new GUI( { title : 'Properties' } );
+        //this.screenGUI.close();
+        //this.contextGUIOuter = document.createElement( 'div' );
+        //this.contextGUIOuter.addEventListener( 'mouseup', event => event.stopPropagation() ); // prevent pass event to document
 
         // below interface refactoring to generic
         // cast desktop interaction interface
         const desktopIRC = this.irc as DesktopIRC;
 
         // link user interface to interaction
-        desktopIRC.contextGUI = this.contextGUIOuter;
-        document.body.appendChild( this.contextGUIOuter );
+        //desktopIRC.contextGUI = this.contextGUIOuter;
+        //document.body.appendChild( this.contextGUIOuter );
 
         // context menu setting
-        this.contextGUI = new GUI( { container : this.contextGUIOuter, title : 'Context' } );
+        //this.contextGUI = new GUI( { container : this.contextGUIOuter, title : 'Context' } );
 
         // create gizmo instance
         const transformer = desktopIRC.createControls( this.camera, canvas );
@@ -943,469 +904,15 @@ export class PalletEngine extends PalletElement {
         } );
     }
 
-    createGUI() {
-        // main menu
-        const system = this.screenGUI.addFolder( "System" );
-        const systemProp = { 
-            Add: function() {
-
-            },
-            Import: function() {
-                const f = Utility.FileSelector();
-                f.addEventListener( "change", () => {
-                    // now only use glb loader
-                    const url = URL.createObjectURL( f.files[0] );
-                    _module.gltfLoader.load( url, gltf => {
-                        _module.sceneGraph.add( gltf.scene );
-                    } );
-                } );
-            }
-        };
-        system.add( systemProp, "Import" );
-
-        //transform
-        const transformFolder = this.screenGUI.addFolder( 'Transform' );
-        transformFolder.close();
-    
-        const positionFolder = transformFolder.addFolder( 'Position' );
-        positionFolder.close();
-        const posProp = { X: 0, Y: 0, Z: 0, };
-        const updatePosition = value => {
-            if ( localIRC.context ) {
-                localIRC.context.position.set( posProp.X, posProp.Y, posProp.Z );
-            }
-        }
-        positionFolder.add( posProp, 'X' ).listen().onChange( updatePosition );
-        positionFolder.add( posProp, 'Y' ).listen().onChange( updatePosition );
-        positionFolder.add( posProp, 'Z' ).listen().onChange( updatePosition );
-
-        const eulerFolder = transformFolder.addFolder( 'Rotation' );
-        eulerFolder.close();
-        const eulerProp = { X: 0, Y: 0, Z: 0, };
-        const updateEuler = value => {
-            if ( localIRC.context ) {
-                localIRC.context.rotation.set( eulerProp.X, eulerProp.Y, eulerProp.Z );
-            }
-        }
-        eulerFolder.add( eulerProp, 'X' ).listen().onChange( updateEuler );
-        eulerFolder.add( eulerProp, 'Y' ).listen().onChange( updateEuler );
-        eulerFolder.add( eulerProp, 'Z' ).listen().onChange( updateEuler );
-
-        const scaleFolder = transformFolder.addFolder( 'Scale' );
-        scaleFolder.close();
-        const scaleProp = { X: 1, Y: 1, Z: 1, };
-        const updateScale = value => {
-            if ( localIRC.context ) {
-                localIRC.context.scale.set( scaleProp.X, scaleProp.Y, scaleProp.Z );
-            }
-        }
-        scaleFolder.add( scaleProp, 'X' ).listen().onChange( updateScale );
-        scaleFolder.add( scaleProp, 'Y' ).listen().onChange( updateScale );
-        scaleFolder.add( scaleProp, 'Z' ).listen().onChange( updateScale );
-
-        // material
-        const materialFolder = this.screenGUI.addFolder( "Material" );
-        const materialProp = {
-            Color: 0xffffff,
-            Map: () => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.style.display = 'none';
-                input.onchange = (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    
-                    const reader = new FileReader();
-                    reader.onload = event => {
-                    const loader = new THREE.TextureLoader();
-                    loader.load(event.target.result, texture => {
-                        localIRC.replaceTexture( texture );
-                        //target.material.map = texture;
-                    });
-                    localIRC.replaceButtonImage( event.target.result );
-                    };
-                    reader.readAsDataURL(input.files[0]);
-                };
-                input.click();
-
-            },
-            NormalMap: () => {},
-            SpecularMap: () => {},
-
-        };
-
-        const updateColor = value => {
-            if ( localIRC.targetMaterial ) {
-                localIRC.targetMaterial.color.setHex( value );
-            } else if ( localIRC.context && localIRC.context.isMesh && localIRC.context.material.color ) {
-                localIRC.context.material.color.setHex( value );
-            }
-        };
-
-        materialFolder.addColor( materialProp, 'Color' ).listen().onChange( updateColor );
-        const textureButton = materialFolder.add( materialProp, 'Map' );
-        const localIRC = this.irc as DesktopIRC;
-        localIRC.textureButton = textureButton;
-        localIRC.replaceButtonImage(undefined);
-
-        const target = localIRC.textureButton.domElement.children[0].children[0] as HTMLElement;
-        const div = document.createElement('div');
-        div.textContent = 'Map';
-        target.parentElement.insertBefore( div, target );
-
-        // mesh information
-        const meshFolder = this.screenGUI.addFolder( "Meshes" );
-
-        // etc properties
-        const etcFolder = this.screenGUI.addFolder( "Etc" );
-        const etcProp = {
-            Animation: true,
-            Loop: true,
-            Reset: () => { localIRC.context.userData.action.time = 0 },
-            Updator: true
-        };
-
-        const animPause = etcFolder.add( etcProp, "Animation" ).listen().onChange( value => { 
-            if ( value ) localIRC.context.userData.action.paused = false;
-            else localIRC.context.userData.action.paused = true;
-        } );
-
-        const animLoop = etcFolder.add( etcProp, "Loop" ).listen().onChange( value => {
-            if ( value ) {
-                localIRC.context.userData.action.setLoop( THREE.LoopRepeat, Infinity );
-                localIRC.context.userData.action.reset();
-            } else
-                localIRC.context.userData.action.setLoop( THREE.LoopOnce );
-        } );
-
-        const resetButton = etcFolder.add( etcProp, "Reset" );
-        const updateController = etcFolder.add( etcProp, "Updator" )
-        .listen()
-        .onChange( value => { 
-            localIRC.context.userData.updators.forEach( updator => updator.enabled = value ); 
-        } );
-
-        // Settings
-
-        const settingsProps = {
-            dirLight_color : 0xffffff,
-            dirLight_intensity : 1,
-            target : () => {
-                
-            },
-            dirLight_select : () => {
-
-            },
-            ambient_color : 0xffffff,
-            ambient_intensity : 1,
-            ambient_select : () => {
-
-            }
-        };
-        const settingsFolder = this.screenGUI.addFolder( 'Settings' );
-        const g_dir_light = settingsFolder.addFolder( 'Directional Light' );
-        g_dir_light.addColor( settingsProps, 'dirLight_color' ).name('Color').onChange( value => { this.directionalLight.color.set( value ) } ).listen();
-        g_dir_light.add( settingsProps, 'dirLight_intensity', 0, 100, 1 ).name('Intensity').onChange( value => this.directionalLight.intensity = value ).listen();
-        g_dir_light.add( settingsProps, 'target' );
-        g_dir_light.add( settingsProps, 'dirLight_select' );
-
-        const g_ambient_light = settingsFolder.addFolder( "Ambient Light" );
-        g_ambient_light.addColor( settingsProps, 'ambient_color' ).name('Color').onChange( value => { this.ambientLight.color.set( value ) } ).listen();
-        g_ambient_light.add( settingsProps, 'ambient_intensity', 0, 100, 1 ).name('Intensity').onChange( value => this.ambientLight.intensity = value ).listen();
-        g_ambient_light.add( settingsProps, 'ambient_select' );
-
-        const environmentProps = {
-            Background: () => {
-
-            },
-            SkyBox : () => {
-                
-            }
-
-        }
-        const g_environment = this.screenGUI.addFolder( 'Environment' );
-
-        let prevUUID = "";
-
-        const clearFolder = ( folder ) => {            
-            const length = folder.controllers.length;
-            const temp = folder.controllers;
-            
-            folder.children = [];
-            folder.controllers = [];
-
-            for( let i = 0; i < length ; ++i ) {
-                temp[i].hide();
-                temp[i].destroy();
-            }
-        };
-
-
-
-        // ui update function
-        this.addUpdator( ( delta ) => {
-
-            //global
-            settingsProps.dirLight_color = this.directionalLight.color.getHex();
-            settingsProps.dirLight_intensity = this.directionalLight.intensity;
-            settingsProps.ambient_color = this.ambientLight.color.getHex();
-            settingsProps.ambient_intensity = this.ambientLight.intensity;
-
-            const obj = localIRC.context;
-
-            if ( obj ) {
-                posProp.X = obj.position.x;
-                posProp.Y = obj.position.y;
-                posProp.Z = obj.position.z;
-
-                eulerProp.X = obj.rotation.x;
-                eulerProp.Y = obj.rotation.y;
-                eulerProp.Z = obj.rotation.z;
-
-                scaleProp.X = obj.scale.x;
-                scaleProp.Y = obj.scale.y;
-                scaleProp.Z = obj.scale.z;
-                
-                if ( obj.userData.mixer ) {
-                    animPause.enable();
-                    animLoop.enable();
-                    resetButton.enable();
-
-                    if ( obj.userData.action.paused ) {
-                        animLoop.setValue( obj.userData.action.paused === THREE.LoopRepeat );
-                    }
-
-                    if ( obj.userData.action.loop === THREE.LoopRepeat )
-                        animLoop.setValue( true );
-                    else
-                        animLoop.setValue( false );
-                }
-                else{
-                    animPause.disable();
-                    animLoop.disable();
-                    resetButton.disable();
-                }
-
-                if ( obj.userData.updators ) {
-                    updateController.enable();
-
-                    let flag = false;
-                    obj.userData.updators.forEach( updator => { flag = flag || updator.enabled } );
-
-                    updateController.setValue( flag );
-                } else {
-                    updateController.disable();
-                }
-
-                if ( obj.isMesh && obj.material ) {
-                    if ( obj.material.color )
-                        materialProp.Color = obj.material.color.getHex();
-                    else
-                        materialProp.Color = 0xffffff;
-                }
-
-                // update mesh folder
-                if ( obj.uuid === prevUUID ) {
-                    // do not update 
-                } else {        
-                    // update local uuid
-                    prevUUID = obj.uuid;
-                    const meshProps = {};
-
-                    clearFolder( meshFolder );
-
-                    if ( obj.isGroup ) {
-                        obj.traverse( child => {
-                            if ( child.isMesh ) {
-                                meshProps[child.name] = () => {
-                                    if ( child.material.map ) {
-                                        const imageToDataURL = (function(img) {
-                                            const  imgData = ImageUtils.getDataURL(img);
-                                            localIRC.targetMaterial = child.material;
-                                            materialProp.Color = child.material.color.getHexString();
-                                            localIRC.replaceButtonImage(imgData);
-                                          }.bind(this))(child.material.map.image);
-                                    }
-                                };
-                                meshFolder.add( meshProps, `${child.name}`);
-                            }
-                        } )
-                    }
-
-                    clearFolder( editScriptFolder );
-                    editScriptFolder.add( propertyParam, "AddScript" ).name( "Add Script" );
-                    if ( obj.userData.updators ) {
-                        obj.userData.updators.forEach( (updator, index) => {
-                            console.log( updator );
-                            const scriptParam = { function: () => {
-                                console.log( updator.func.archetype );
-                                this.showEditor( updator.archetype, index );
-                            } };
-                            const control = editScriptFolder.add( scriptParam, 'function' ).name(`Script - ${index}`);
-                            console.log( control );
-                        } );
-                    }
-                    
-                    clearFolder( eventFolder );
-                    eventFolder.add( propertyParam, "AddEvent" ).name( "Add Event" );
-                    if ( obj.userData.events ) {
-                        obj.userData.events.forEach( (event, index) => {} );
-                    }
-                }
-            } else {
-                // set default
-                posProp.X = 0;
-                posProp.Y = 0;
-                posProp.Z = 0;
-
-                eulerProp.X = 0;
-                eulerProp.Y = 0;
-                eulerProp.Z = 0;
-
-                scaleProp.X = 1;
-                scaleProp.Y = 1;
-                scaleProp.Z = 1;
-
-                materialProp.Color = 0xffffff;
-                
-                clearFolder( meshFolder );
-
-                animPause.disable();
-                animLoop.disable();
-                resetButton.disable();
-                updateController.disable();
-
-                prevUUID = "";
-
-                clearFolder( editScriptFolder );
-            }
-        } );
-
-        // context menu
-        // assign custom style
-        this.contextGUIOuter.style.cssText = 'position: absolute; left: 0px; top: 0px; visibility: hidden;';
-
-        const propertyParam = {
-            AddScript: () => {
-
-            },
-            AddEvent: () => {
-
-            }
-        }
- 
-
-        const propertyFolder = this.contextGUI.addFolder( 'Property' );
-        const editScriptFolder = propertyFolder.addFolder( 'Scripts' );
-        const eventFolder = propertyFolder.addFolder( 'Events' );
-        propertyFolder.hide();
-
-        const lightFolder = this.contextGUI.addFolder('Light');
-        const lightParam = {
-            Color: '#ffffff',
-            Intensity: 1,
-        };
-
-        lightFolder.addColor( lightParam, 'Color' ).onChange( color => {
-            localIRC.context.light.color = new THREE.Color( color );
-        } );
-
-        lightFolder.add( lightParam, 'Intensity', 0, 1000, 1 ).onChange( intensity => {
-            localIRC.context.light.intensity = intensity;
-        } );
+    createGUI() {        
+        const pgui = new PalletGUI( 'mode' );
         
-        const creationParam = {
-            Box: () => {
-                localIRC.disableContextGUI(); // refactoring
-                const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-                const material = new THREE.MeshStandardMaterial();
-                const box = new THREE.Mesh( geometry, material );
-                box.position.copy( localIRC.hitPoint );
-                box.castShadow = true;
-                box.receiveShadow = true;
-                this.sceneGraph.add( box );
-            },
-            Sphere: () => {
-                localIRC.disableContextGUI(); // refactoring
-                const geometry = new THREE.SphereGeometry( 0.8, 30, 15 );
-                const material = new THREE.MeshStandardMaterial();
-                const sphere = new THREE.Mesh( geometry, material );
-                sphere.position.copy( localIRC.hitPoint );
-                sphere.castShadow = true;
-                sphere.receiveShadow = true;
-                this.sceneGraph.add( sphere );
-            },
-            Plane: () => {
-                localIRC.disableContextGUI(); // refactoring
-                const geometry = new THREE.PlaneGeometry( 1, 1, 1 );
-                const material = new THREE.MeshStandardMaterial();
-                const plane = new THREE.Mesh( geometry, material );
-                plane.position.copy( localIRC.hitPoint );
-                this.sceneGraph.add( plane );
-            },
-            GLB: () => {
-                localIRC.disableContextGUI(); // refactoring
-            },
-            DirectionalLight: () => {
-                localIRC.disableContextGUI();
-                const light = new THREE.DirectionalLight();
-                light.castShadow = true;
-                light.shadow.camera.near = 1;
-				light.shadow.camera.far = 100;
-				light.shadow.camera.right = 15;
-				light.shadow.camera.left = - 15;
-				light.shadow.camera.top	= 15;
-				light.shadow.camera.bottom = - 15;
-				light.shadow.mapSize.width = 512;
-				light.shadow.mapSize.height = 512;                
-                const helper = new THREE.DirectionalLightHelper( light, 1 );
-                helper.isHelper = true;
-                this.sceneGraph.add( light );
-                this.sceneGraph.add( helper );
-            },
-            PointLight: () => {
-                localIRC.disableContextGUI();
-                const light = new THREE.PointLight();
-                const helper = new THREE.PointLightHelper( light, 1 );
-                helper.isHelper = true;
-                this.sceneGraph.add( light );
-                this.sceneGraph.add( helper );
-            },
-            SpotLight: () => {
-                localIRC.disableContextGUI();
-                const light = new THREE.SpotLight( 0xffffff, 3, 0, 0.3, 1, 0 );
-                light.position.set( 0, 3, 0 );
-                light.castShadow = true;
-                const helperParent = new THREE.Object3D();
-                const helper = new THREE.Mesh( new THREE.ConeGeometry( 1, 3, 10 ), new THREE.MeshBasicMaterial( { color: 0xffffff, wireframe: true } ) );
-                helper.light = light;
-                helper.isHelper = true;
-                helper.rotation.set( -1.57, 0, 0 );
-                helperParent.add( helper );
-                this.sceneGraph.add( light );
-                light.add( helperParent );
-                let updator : Updator = { func : ( dt ) => {
-                    helperParent.lookAt( light.target.position );
-                }, enabled : true, archetype: '' };
-                this.updateFunctions.push( updator );
-                light.userData.scripts = [ updator.func ];
-            },
-            HemisphereLight: () => {
-                localIRC.disableContextGUI();
-                const light = new THREE.HemisphereLight( 0xffffff, 0x080820, 1 );
-                this.sceneGraph.add( light );
-            }
-        }
-
-        const create = this.contextGUI.addFolder( 'Add' );
-        create.add( creationParam, 'Box' );
-        create.add( creationParam, 'Sphere' );
-        create.add( creationParam, 'Plane' );
-        create.add( creationParam, 'GLB' );
-        create.add( creationParam, 'DirectionalLight' );
-        create.add( creationParam, 'PointLight' );
-        create.add( creationParam, 'SpotLight' );
-        create.add( creationParam, 'HemisphereLight' );
+        EventEmitter.on( 'glbopen', ( url ) => {
+            this.gltfLoader.load( url, gltf => {
+                console.log( '@@' );
+                this.sceneGraph.add( gltf.scene );
+            } );
+        } );
         
         this.createMonacoEditor();
     }
@@ -1671,7 +1178,7 @@ export class PalletEngine extends PalletElement {
 customElements.define( 'pallet-element', PalletElement );
 customElements.define( 'pallet-engine', PalletEngine );
 
-
+// TODO : fix 
 let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
 export let _module : PalletEngine;
 

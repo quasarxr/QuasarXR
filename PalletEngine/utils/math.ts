@@ -1,5 +1,5 @@
 
-export default class MathFunctions {
+export default class MathUtil {
 
     deg2Rad( degree : number ) { return degree * Math.PI / 180.0; }
     rad2Deg( radian : number ) { return radian * 180.0 / Math.PI; }
