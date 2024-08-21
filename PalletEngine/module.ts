@@ -907,9 +907,8 @@ class PalletEngine extends PalletElement {
     createGUI() {        
         const pgui = new PalletGUI( 'mode' );
         
-        EventEmitter.on( 'glbopen', ( url ) => {
+        EventEmitter.on( 'file-import', ( url ) => {
             this.gltfLoader.load( url, gltf => {
-                console.log( '@@' );
                 this.sceneGraph.add( gltf.scene );
             } );
         } );

@@ -1,11 +1,55 @@
-import { Pane, FolderApi, ButtonApi, InputBindingApi } from 'tweakpane';
+import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi } from 'tweakpane';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
+import fs from 'fs';
+import MathUtil from '../utils/math';
 
-type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> ;
+type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi ;
 const _GuiIDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph' ];
 
-interface guiInterface {
+enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY };
+enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION };
+
+interface GUIData { title : string, emit : string, cat : string, binding : object };
+
+const bakeGUIData = ( t, e, c, b = null ) => {
+    let data : GUIData = { title: t, emit: e, cat: c, binding: b };
+    return data;
+}
+
+const _GuiDatas : [ GUIData[] ]= [
+    [ // system
+        bakeGUIData( 'Import', 'file-import', 'button' ) ,
+        bakeGUIData( 'Export', 'file-export', 'button' ) ,
+    ],[ // creation
+        bakeGUIData( 'Box', 'create-box', 'button' ),
+        bakeGUIData( 'Sphere', 'create-sphere', 'button' ),
+        bakeGUIData( 'Plane', 'create-plane', 'button' ),
+        bakeGUIData( 'Corn', 'create-corn', 'button' ),
+        bakeGUIData( 'Cylinder', 'create-cylinder', 'button' ),
+        bakeGUIData( 'DirLight', 'create-dirlight', 'button' ),
+        bakeGUIData( 'PointLight', 'create-pointlight', 'button' ),
+        bakeGUIData( 'SpotLight', 'create-spotlight', 'button' ),
+        bakeGUIData( 'HemisphereLight', 'create-hemispherelight', 'button' ),
+    ], [ // transform
+        { title: 'Position', emit: 'modify-position', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } },
+        { title: 'Rotation', emit: 'modify-rotation', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } },
+        { title: 'Scale', emit: 'modify-scale', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } }
+    ], [ // material
+        { title: 'Color', emit: 'mat-color', cat: 'color' },
+        { title: 'Diffuse', emit: 'mat-diffuse', cat: 'image' },
+        { title: 'Normal', emit: 'mat-normal', cat: 'image' },
+        { title: 'Metalic', emit: 'mat-metalic', cat: 'image' },
+        { title: 'Roughness', emit: 'mat-roughness', cat: 'image' },
+        { title: 'Specular', emit: 'mat-specular', cat: 'image' },
+    ], [ // animation
+        { title: 'Enable', emit: 'anim-enable', cat: 'checkbox' },
+        { title: 'Loop', emit: 'anim-loop', cat: 'checkbox' },
+        { title: 'Reset', emit: 'anim-reset', cat: 'checkbox' },
+    ],
+];
+
+interface GuiInterface {
     uid : string;
     pi : GuiComponent; // tweak pane instace
     events : [];
@@ -36,20 +80,21 @@ class PalletPane extends Pane {
 
 export default class PalletGUI {
     paneMap : Map<string, PalletPane>;// [name : string, gui : Pane][];
-    guiMap : Map<string, guiInterface>;
-    propMap : Map<string, any>;
+    guiMap : Map<string, GuiInterface>;
+    propUpdator : Function;
 
     constructor( mode : string ) {
         this.initialize( mode );
     }
 
     initialize( mode : string ) {
-        this.paneMap = new Map();
+        this.paneMap = new Map<string, PalletPane> ();
+        this.guiMap = new Map<string, GuiInterface> ();
         _GuiIDs.forEach( name => {
             this.createPane( name ).hidden = true;
         } );
 
-        this.configProperty();
+        this.configData();
     }
 
     createPane( id : string, container : HTMLElement = null ) : PalletPane {
@@ -62,7 +107,9 @@ export default class PalletGUI {
     }
 
     update( delta ) {
-
+        if( this.propUpdator ) {
+            this.propUpdator( delta );
+        }
     }
 
     dispose() {
@@ -75,13 +122,11 @@ export default class PalletGUI {
         return this.paneMap.get( id );
     }
 
-    configProperty() {
-        const params = {
-            Import : function() {
+    getGUI( uid : string ) {
+        return this.guiMap.get( uid );
+    }
 
-            }
-        };
-        
+    configData() {        
         const inst = this.paneMap.get('property-panel');
         inst.hidden = false;
         const tab = inst.addTab( {
@@ -91,40 +136,81 @@ export default class PalletGUI {
                 { title: 'Property' },
             ]
         } );
+
+        this.guiMap.set( 'property-tab', { uid : 'property-tab', pi : tab, events: [] } );
         
-        const glbBtn = tab.pages[0].addButton( {
-            title: 'ImportGLB'
-        } );
+        this.deploySystem( tab.pages[ TAB_PAGE_ID.SYSTEM ] );
+        this.deployCreation( tab.pages[ TAB_PAGE_ID.CREATION ] );
+        this.deployTransform( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
+        this.deployMaterial( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
+        this.deplayAnimation( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
 
-        this.propertyData.forEach( el => {
-            tab.pages[1].addButton( { title: el.title } );
+    }
+
+    connectAction( btn : ButtonApi, emitName : string ) {
+        const actionName = emitName.replace('-', '' );
+        const func = this.searchMethod( actionName );
+        btn.on( 'click', () => { 
+            if ( func ) func( ( data ) => EventEmitter.emit( emitName, data ) )
+        } );
+    }
+
+    deploySystem( page : TabPageApi ) {
+        _GuiDatas[ GUI_DATA_ID.SYSTEM ].forEach( el => {
+            const btn = page.addButton( { title: el.title } );
+            this.connectAction( btn, el.emit );
+        } );
+    }
+
+    deployTransform( page : TabPageApi ) {
+        const f = page.addFolder( { title: 'Transform' } );
+        _GuiDatas[ GUI_DATA_ID.TRANSFORM ].forEach( el => {
+            const b = f.addBinding( el, 'binding' );
+            b.label = el.title;
+        } );
+    }
+
+    deplayAnimation( page : TabPageApi ) {
+
+    }
+
+    deployMaterial( page : TabPageApi ) {
+
+    }
+    
+    deployCreation( page : TabPageApi ) {        
+        _GuiDatas[ GUI_DATA_ID.CREATION ].forEach( el => {
+            const btn = page.addButton( { title: el.title } );
+        } );
+    }
+
+    actionFileImport( cb : Function ) {
+        const fs = FileUtil.FileSelector();
+        fs.addEventListener( 'change', () => {
+            const url = URL.createObjectURL( fs.files[0] );
+            if ( cb ) cb( url );
         } )
-                
-        glbBtn.on( 'click', () => {
-            const f = FileUtil.FileSelector();
-            f.addEventListener( "change", () => {
-                EventEmitter.emit( 'glbopen', URL.createObjectURL( f.files[0] ) );
-            } );
-        } );
     }
 
-    get propertyData() {
-        return [ 
-            { title: 'Box', emit: 'createbox' },
-            { title: 'Sphere', emit: 'createshere' },
-            { title: 'Plane', emit: 'createplane' },
-            { title: 'Corn', emit: 'createcorn' },
-            { title: 'Cylinder', emit: 'createcylinder' },
-            { title: 'DirLight', emit: 'dirlight' },
-            { title: 'PointLight', emit: 'pointlight' },
-            { title: 'SpotLight', emit: 'spotlight' },
-            { title: 'HemisphereLight', emit: 'hemilight' },
-        ];
+    actionFileExport( cb : Function ) {
+        // something ...
+        if ( cb ) cb();
     }
 
-    get systemData() {
-        return [
-            { title: 'Import', emit: 'glbopen' }
-        ]
+    searchMethod( methodName ) {
+        let propNames : string[] = Object.getOwnPropertyNames( PalletGUI.prototype );
+        console.log( propNames );
+        const findName : string = propNames.find( name => name.toLowerCase().includes( methodName ) );
+
+        console.log( findName );
+        //let func = undefined;
+        // for( const propName of  Object.getOwnPropertyNames(PalletGUI.prototype) ) {
+        //     if ( typeof this[propName] === 'function' && propName.toLowerCase().includes( methodName ) ) {
+        //         func = this[propName];
+        //         break;
+        //     }
+        // }
+        return this[ findName ];
     }
+
 }
