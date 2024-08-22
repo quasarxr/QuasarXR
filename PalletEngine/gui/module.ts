@@ -1,4 +1,5 @@
 import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi } from 'tweakpane';
+import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
 import fs from 'fs';
@@ -7,17 +8,26 @@ import MathUtil from '../utils/math';
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi ;
 const _GuiIDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph' ];
 
+interface PanePrimitive { value : number | boolean | string };
+interface PaneVector2 { x : number, y : number };
+interface PaneVector3 { x : number, y : number, z : number };
+interface PaneVector4 { x : number, y : number, z : number, w : number };
+interface PaneColor { r: 255, g: 255, b: 255, a: 255 };
+
+type PaneParamType = PanePrimitive | PaneVector2 | PaneVector3 | PaneVector4 | PaneColor;
+
 enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY };
 enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION };
+enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] = 'POSITION'
 
-interface GUIData { title : string, emit : string, cat : string, binding : object };
+interface GUIData { title : string, emit : string, cat : string, binding : PaneParamType };
 
-const bakeGUIData = ( t, e, c, b = null ) => {
+const bakeGUIData = ( t : string , e : string , c : string , b = null ) => {
     let data : GUIData = { title: t, emit: e, cat: c, binding: b };
     return data;
 }
 
-const _GuiDatas : [ GUIData[] ]= [
+const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ) ,
         bakeGUIData( 'Export', 'file-export', 'button' ) ,
@@ -32,20 +42,20 @@ const _GuiDatas : [ GUIData[] ]= [
         bakeGUIData( 'SpotLight', 'create-spotlight', 'button' ),
         bakeGUIData( 'HemisphereLight', 'create-hemispherelight', 'button' ),
     ], [ // transform
-        { title: 'Position', emit: 'modify-position', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } },
-        { title: 'Rotation', emit: 'modify-rotation', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } },
-        { title: 'Scale', emit: 'modify-scale', cat: 'p3d', binding: { x: 0, y: 0, z: 0 } }
+        bakeGUIData( 'Position', 'modify-position', 'p3d', { x: 0, y: 0, z: 0 } ),
+        bakeGUIData( 'Rotation', 'modify-rotation', 'p3d', { x: 0, y: 0, z: 0 } ),
+        bakeGUIData( 'Scale', 'modify-scale', 'p3d', { x: 0, y: 0, z: 0 } )
     ], [ // material
-        { title: 'Color', emit: 'mat-color', cat: 'color' },
-        { title: 'Diffuse', emit: 'mat-diffuse', cat: 'image' },
-        { title: 'Normal', emit: 'mat-normal', cat: 'image' },
-        { title: 'Metalic', emit: 'mat-metalic', cat: 'image' },
-        { title: 'Roughness', emit: 'mat-roughness', cat: 'image' },
-        { title: 'Specular', emit: 'mat-specular', cat: 'image' },
+        bakeGUIData( 'Color', 'mat-color', 'color', { value: '0xffffff' } ),
+        bakeGUIData( 'Diffuse', 'mat-diffuse', 'image' ),
+        bakeGUIData( 'Normal', 'mat-normal', 'image' ),
+        bakeGUIData( 'Metalic', 'mat-metalic', 'image' ),
+        bakeGUIData( 'Roughness', 'mat-roughness', 'image' ),
+        bakeGUIData( 'Specular', 'mat-specular', 'image' ),
     ], [ // animation
-        { title: 'Enable', emit: 'anim-enable', cat: 'checkbox' },
-        { title: 'Loop', emit: 'anim-loop', cat: 'checkbox' },
-        { title: 'Reset', emit: 'anim-reset', cat: 'checkbox' },
+        bakeGUIData( 'Enable', 'anim-enable', 'checkbox', { value : true } ),
+        bakeGUIData( 'Loop', 'anim-loop', 'checkbox', { value: true } ),
+        bakeGUIData( 'Reset', 'anim-reset', 'button' ),
     ],
 ];
 
@@ -155,6 +165,19 @@ export default class PalletGUI {
         } );
     }
 
+    connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
+        binding.on( 'change', (event) => {
+            EventEmitter.emit( emitName, event.value );
+        } );
+
+        EventEmitter.on( listenName, ( value ) => {
+            for( let key in param ) {
+                param[key] = value[key];
+            }
+            binding.refresh();
+        } );
+    }
+
     deploySystem( page : TabPageApi ) {
         _GuiDatas[ GUI_DATA_ID.SYSTEM ].forEach( el => {
             const btn = page.addButton( { title: el.title } );
@@ -164,14 +187,28 @@ export default class PalletGUI {
 
     deployTransform( page : TabPageApi ) {
         const f = page.addFolder( { title: 'Transform' } );
-        _GuiDatas[ GUI_DATA_ID.TRANSFORM ].forEach( el => {
-            const b = f.addBinding( el, 'binding' );
-            b.label = el.title;
+        _GuiDatas[ GUI_DATA_ID.TRANSFORM ].forEach( ( el, index, arr ) => {
+            const bind = f.addBinding( el, 'binding' );
+            bind.label = el.title;
+            const target = _GuiDatas[ GUI_DATA_ID.TRANSFORM ][ index ].binding;
+            console.log( el.emit );
+            this.connectBinding( bind, target, el.emit, el.emit+'-listen' );
         } );
+
     }
 
     deplayAnimation( page : TabPageApi ) {
-
+        const f = page.addFolder( { title: 'Animation Control' } );
+        _GuiDatas[ GUI_DATA_ID.ANIMATION ].forEach( ( el, index, arr ) => {
+            if ( el.cat === 'button' ) {
+                const btn = f.addButton( { title: el.title } );
+                this.connectAction( btn, el.emit );
+            } else {
+                const bind = f.addBinding( el.binding as PanePrimitive, 'value' );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit+'-listen' );
+            }
+        } );
     }
 
     deployMaterial( page : TabPageApi ) {
@@ -199,10 +236,7 @@ export default class PalletGUI {
 
     searchMethod( methodName ) {
         let propNames : string[] = Object.getOwnPropertyNames( PalletGUI.prototype );
-        console.log( propNames );
         const findName : string = propNames.find( name => name.toLowerCase().includes( methodName ) );
-
-        console.log( findName );
         //let func = undefined;
         // for( const propName of  Object.getOwnPropertyNames(PalletGUI.prototype) ) {
         //     if ( typeof this[propName] === 'function' && propName.toLowerCase().includes( methodName ) ) {

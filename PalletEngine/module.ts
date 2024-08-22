@@ -912,6 +912,18 @@ class PalletEngine extends PalletElement {
                 this.sceneGraph.add( gltf.scene );
             } );
         } );
+
+        EventEmitter.emit('modify-position-listen', { x: 1, y : 1, z : 0 } );
+        EventEmitter.emit('modify-rotation-listen', { x: 1, y : 1, z : 0 } );
+        EventEmitter.emit('modify-scale-listen', { x: 1, y : 1, z : 0 } );
+        
+        EventEmitter.emit( 'anim-enable-listen', { value: false } );
+
+        EventEmitter.on( 'modify-position', value => console.log( value ) );
+        EventEmitter.on( 'modify-rotation', value => console.log( value ) );
+        EventEmitter.on( 'modify-scale', value => console.log( value ) );
+
+        EventEmitter.on( 'anim-enable', value => console.log( value ) );
         
         this.createMonacoEditor();
     }
