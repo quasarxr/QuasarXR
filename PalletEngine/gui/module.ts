@@ -1,4 +1,4 @@
-import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi } from 'tweakpane';
+import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams } from 'tweakpane';
 import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
@@ -17,27 +17,36 @@ interface PaneColor { r: 255, g: 255, b: 255, a: 255 };
 type PaneParamType = PanePrimitive | PaneVector2 | PaneVector3 | PaneVector4 | PaneColor;
 
 enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY };
-enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION };
+enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION, ENVIRONMENT, DIRLIGHT, AMBIENTLIGHT, FLOOR };
 enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] = 'POSITION'
 
-interface GUIData { title : string, emit : string, cat : string, binding : PaneParamType };
+interface GUIData { title : string, emit : string, cat : string, binding : PaneParamType, option : BindingParams };
 
-const bakeGUIData = ( t : string , e : string , c : string , b = null ) => {
-    let data : GUIData = { title: t, emit: e, cat: c, binding: b };
+const bakeGUIData = ( t : string , e : string , c : string , b = null, opt = null ) => {
+    let data : GUIData = { title: t, emit: e, cat: c, binding: b, option: opt };
     return data;
+}
+
+const fileSelector = ( callback ) => {
+    const fs = FileUtil.FileSelector();
+    fs.addEventListener( 'change', () => {
+        const url = URL.createObjectURL( fs.files[0] );
+        if ( callback ) callback( url );
+    } );
 }
 
 const _GuiDatas : GUIData[][]= [
     [ // system
-        bakeGUIData( 'Import', 'file-import', 'button' ) ,
-        bakeGUIData( 'Export', 'file-export', 'button' ) ,
+        bakeGUIData( 'Import', 'file-import', 'button' ),
+        bakeGUIData( 'Export', 'file-export', 'button' ),
+        bakeGUIData( 'Publish', 'sys-publish', 'button' ),
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
         bakeGUIData( 'Sphere', 'create-sphere', 'button' ),
         bakeGUIData( 'Plane', 'create-plane', 'button' ),
-        bakeGUIData( 'Corn', 'create-corn', 'button' ),
+        bakeGUIData( 'Cone', 'create-cone', 'button' ),
         bakeGUIData( 'Cylinder', 'create-cylinder', 'button' ),
-        bakeGUIData( 'DirLight', 'create-dirlight', 'button' ),
+        bakeGUIData( 'DirectionalLight', 'create-dirlight', 'button' ),
         bakeGUIData( 'PointLight', 'create-pointlight', 'button' ),
         bakeGUIData( 'SpotLight', 'create-spotlight', 'button' ),
         bakeGUIData( 'HemisphereLight', 'create-hemispherelight', 'button' ),
@@ -46,7 +55,7 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Rotation', 'modify-rotation', 'p3d', { x: 0, y: 0, z: 0 } ),
         bakeGUIData( 'Scale', 'modify-scale', 'p3d', { x: 0, y: 0, z: 0 } )
     ], [ // material
-        bakeGUIData( 'Color', 'mat-color', 'color', { value: '0xffffff' } ),
+        bakeGUIData( 'Color', 'mat-color', 'color', { value: 0xffffff }, { view: 'color' } ),
         bakeGUIData( 'Diffuse', 'mat-diffuse', 'image' ),
         bakeGUIData( 'Normal', 'mat-normal', 'image' ),
         bakeGUIData( 'Metalic', 'mat-metalic', 'image' ),
@@ -56,7 +65,21 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Enable', 'anim-enable', 'checkbox', { value : true } ),
         bakeGUIData( 'Loop', 'anim-loop', 'checkbox', { value: true } ),
         bakeGUIData( 'Reset', 'anim-reset', 'button' ),
-    ],
+    ], [ // environment
+        bakeGUIData( 'Background', 'env-bg', 'button' ),
+        bakeGUIData( 'Background\nColor', 'env-bg-color', 'color', { value: 0x3c3c3c }, { view: 'color' } ),
+        bakeGUIData( 'HDR', 'env-hdr', 'button' ),
+        bakeGUIData( 'EXR', 'env-exr', 'button' ),
+        bakeGUIData( 'Exposure', 'env-exposure', 'slider', { value : 1 }, { min: 0, max: 2 } ),
+    ], [ // dir light
+        bakeGUIData( 'Intensity', 'env-dirlight-intensity', 'slider', { value : 4 }, { min : 0, max : 1000 } ),
+        bakeGUIData( 'Color', 'env-dirlight-color', 'color', { value : 0x94f8ff }, { view: 'color' } ),
+        bakeGUIData( 'Direction', 'env-dirlight-edit', 'button' ),
+    ], [ // ambient light
+        bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
+        bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
+    ], [ // floor
+    ]
 ];
 
 interface GuiInterface {
@@ -151,6 +174,7 @@ export default class PalletGUI {
         
         this.deploySystem( tab.pages[ TAB_PAGE_ID.SYSTEM ] );
         this.deployCreation( tab.pages[ TAB_PAGE_ID.CREATION ] );
+        this.deploySelection( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deployTransform( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deployMaterial( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deplayAnimation( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
@@ -160,8 +184,23 @@ export default class PalletGUI {
     connectAction( btn : ButtonApi, emitName : string ) {
         const actionName = emitName.replace('-', '' );
         const func = this.searchMethod( actionName );
+        if ( func ) func.bind( this );
         btn.on( 'click', () => { 
             if ( func ) func( ( data ) => EventEmitter.emit( emitName, data ) )
+        } );
+    }
+    
+    connectImageAction( btn : ButtonApi, emitName : string ) {
+        EventEmitter.on( emitName + '-listen', data => {
+            const div = btn.element.children[1].children[0].children[0] as HTMLElement;
+            div.style.backgroundImage = `url("${data}")`;
+            div.style.backgroundSize = 'cover'; // 'cover','contain','initial','inherit'
+            div.style.backgroundRepeat = 'no-repeat';
+            div.style.backgroundPosition = 'center';
+            div.style.width = '40px';
+            div.style.height = '40px';
+            //div.style.marginLeft = 'auto';
+            div.textContent = '';
         } );
     }
 
@@ -179,9 +218,58 @@ export default class PalletGUI {
     }
 
     deploySystem( page : TabPageApi ) {
+        const fileFolder = page.addFolder( { title : 'File' } );
         _GuiDatas[ GUI_DATA_ID.SYSTEM ].forEach( el => {
-            const btn = page.addButton( { title: el.title } );
+            const btn = fileFolder.addButton( { title: el.title } );
             this.connectAction( btn, el.emit );
+        } );
+
+        const envFolder = page.addFolder( { title : 'Environment' } );
+        _GuiDatas[ GUI_DATA_ID.ENVIRONMENT ].forEach( el => {
+            if ( el.cat === 'button' ) {
+                const btn = envFolder.addButton( { title: '', label : el.title } );
+                this.connectAction( btn, el.emit );
+            } else if ( el.cat === 'slider' ) {
+                const target = el.binding as PanePrimitive;
+                const bind = envFolder.addBinding( target, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, target, el.emit, el.emit + '-listen' );
+            } else if ( el.cat === 'color' ) {
+                const bind = envFolder.addBinding( el.binding as PanePrimitive, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            }
+        } );
+
+        const dirLightFolder = page.addFolder( { title : 'Light' } );
+        _GuiDatas[ GUI_DATA_ID.DIRLIGHT ].forEach( el => {
+            if ( el.cat === 'slider' ) {
+                const target = el.binding as PanePrimitive;
+                const bind = dirLightFolder.addBinding( target, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, target, el.emit, el.emit + '-listen' );
+            } else if ( el.cat === 'color' ) {
+                const bind = dirLightFolder.addBinding( el.binding as PanePrimitive, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            } else if ( el.cat === 'button' ) {
+                const btn = dirLightFolder.addButton( { title: el.title } );
+                this.connectAction( btn, el.emit );
+            }
+        } );
+
+        const ambientFolder = page.addFolder( { title : 'Ambient' } );
+        _GuiDatas[ GUI_DATA_ID.AMBIENTLIGHT ].forEach( el => {
+            if ( el.cat === 'slider' ) {
+                const target = el.binding as PanePrimitive;
+                const bind = ambientFolder.addBinding( target, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, target, el.emit, el.emit + '-listen' );
+            } else if ( el.cat === 'color' ) {
+                const bind = ambientFolder.addBinding( el.binding as PanePrimitive, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            }
         } );
     }
 
@@ -194,7 +282,7 @@ export default class PalletGUI {
             console.log( el.emit );
             this.connectBinding( bind, target, el.emit, el.emit+'-listen' );
         } );
-
+        this.guiMap.set( 'transform-folder', { uid : 'transform-folder', pi : f, events: [] } );
     }
 
     deplayAnimation( page : TabPageApi ) {
@@ -209,24 +297,55 @@ export default class PalletGUI {
                 this.connectBinding( bind, el.binding, el.emit, el.emit+'-listen' );
             }
         } );
+        this.guiMap.set( 'animation-folder', { uid : 'animation-folder', pi : f, events: [] } );
     }
 
     deployMaterial( page : TabPageApi ) {
+        const f = page.addFolder( { title: 'Material' } );
+        _GuiDatas[ GUI_DATA_ID.MATERIAL ].forEach( ( el, index, arr ) => {
+            if ( el.cat === 'image' ) {
+                const btn = f.addButton( { title: '', label : el.title } );
+                this.connectAction( btn, el.emit );
+                this.connectImageAction( btn, el.emit );
+                EventEmitter.emit( el.emit + '-listen', undefined );
+            } else if ( el.cat === 'color' ) {
+                const bind = f.addBinding( el.binding as PanePrimitive, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            } else {
+                const bind = f.addBinding( el.binding as PanePrimitive, 'value' );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            }
+        } );
+        this.guiMap.set( 'material-folder', { uid : 'material-folder', pi : f, events: [] } );
+    }
 
+    deploySelection( page : TabPageApi ) {
+        const f = page.addFolder( { title : 'Selection' } );
+        this.guiMap.set( 'select-folder', { uid : 'select-folder', pi : f , events: [] } );
+        EventEmitter.on( 'display-objects', data => {
+            console.log( data );
+        } );
     }
     
     deployCreation( page : TabPageApi ) {        
         _GuiDatas[ GUI_DATA_ID.CREATION ].forEach( el => {
             const btn = page.addButton( { title: el.title } );
+            btn.on( 'click', ev => EventEmitter.emit( el.emit, null ) );
         } );
     }
 
     actionFileImport( cb : Function ) {
-        const fs = FileUtil.FileSelector();
-        fs.addEventListener( 'change', () => {
-            const url = URL.createObjectURL( fs.files[0] );
-            if ( cb ) cb( url );
-        } )
+        fileSelector( cb );
+    }
+
+    actionMatDiffuse( cb : Function ) {
+        fileSelector( cb );
+    }
+
+    actionMatNormal( cb : Function ) {
+        fileSelector( cb );
     }
 
     actionFileExport( cb : Function ) {
@@ -246,5 +365,4 @@ export default class PalletGUI {
         // }
         return this[ findName ];
     }
-
 }

@@ -263,6 +263,20 @@ class DesktopIRC extends InteractionController {
                     }
                 }
             }
+
+            if ( this.controls.axis && this.controls.dragging && this.context ) {
+                if ( this.controls.mode === 'translate' ) {
+                    const p = this.context.position;
+                    EventEmitter.emit('modify-position-listen', { x: p.x, y : p.y, z : p.z } );
+                } else if ( this.controls.mode === 'rotate' ) {     
+                    const r = this.context.rotation;               
+                    EventEmitter.emit('modify-rotation-listen', { x: r.x, y : r.y, z : r.z } );
+                } else if ( this.controls.mode === 'scale' ) {
+                    const s = this.context.scale;
+                    EventEmitter.emit('modify-scale-listen', { x: s.x, y : s.y, z : s.z } );
+                }
+            }
+            
         } );
 
         // button release handler
@@ -401,8 +415,7 @@ class DesktopIRC extends InteractionController {
         }
     }
     
-    onIntersection( hits : Array<any> ) {        
-        this.replaceButtonImage( undefined );
+    onIntersection( hits : Array<any> ) {
         let eventObject = null;
         const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && !h.object.isGround );
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
@@ -420,17 +433,36 @@ class DesktopIRC extends InteractionController {
                 const pickedObject = hitMeshes[0].object;
                 eventObject = pickedObject;
                 this.controls.attach( pickedObject );
-                this.context = hitMeshes[0].object;                
-                this.replaceButtonImage( undefined );
+                this.context = hitMeshes[0].object;
+            }
 
-                if ( pickedObject.isMesh && pickedObject.material ) {
-                    if ( pickedObject.material.map ) {
-                        const imageToDataURL = (function(img) {
-                            const  imgData = ImageUtils.getDataURL(img);
-                            console.log( this );
-                            this.replaceButtonImage(imgData);
-                          }.bind(this))(pickedObject.material.map.image);
-                    }
+            if ( this.context ) {
+                const p = this.context.position;
+                EventEmitter.emit('modify-position-listen', { x: p.x, y : p.y, z : p.z } );   
+                const r = this.context.rotation;               
+                EventEmitter.emit('modify-rotation-listen', { x: r.x, y : r.y, z : r.z } );
+                const s = this.context.scale;
+                EventEmitter.emit('modify-scale-listen', { x: s.x, y : s.y, z : s.z } );
+
+                
+                if ( this.context.isMesh && this.context.material ) {
+                    const diffuse = this.context.material.map ? ImageUtils.getDataURL(this.context.material.map.image) : undefined;
+                    const normal = this.context.material.normalMap ? ImageUtils.getDataURL(this.context.material.normalMap.image) : undefined;
+                    const roughness = this.context.material.roughnessMap ? ImageUtils.getDataURL(this.context.material.roughnessMap.image) : undefined;
+                    const metalness = this.context.material.metalnessMap ? ImageUtils.getDataURL(this.context.material.metalnessMap.image) : undefined;
+                    const specular = this.context.material.specularMap ? ImageUtils.getDataURL(this.context.material.specularMap.image) : undefined;
+                    
+                    EventEmitter.emit( 'mat-diffuse-listen', diffuse );
+                    EventEmitter.emit( 'mat-normal-listen', normal );
+                    EventEmitter.emit( 'mat-metalic-listen', metalness );
+                    EventEmitter.emit( 'mat-roughness-listen', roughness );
+                    EventEmitter.emit( 'mat-specular-listen', specular );
+                } else {                    
+                    EventEmitter.emit( 'mat-diffuse-listen', undefined );
+                    EventEmitter.emit( 'mat-normal-listen', undefined );
+                    EventEmitter.emit( 'mat-metalic-listen', undefined );
+                    EventEmitter.emit( 'mat-roughness-listen', undefined );
+                    EventEmitter.emit( 'mat-specular-listen', undefined );
                 }
             }
         } else {                
@@ -462,38 +494,6 @@ class DesktopIRC extends InteractionController {
 
     disableContextGUI() {
 
-    }
-
-    replaceButtonImage( source ) {
-        //const buttonOrigin = imageButton.domElement.children[0].children[0];
-        //button.style.backgroundColor = '#ff0000';
-        //button.style.backgroundImage = `url(/images/temp/apple.jpeg)`;
-        if ( this.textureButton && this.textureButton.domElement ) {
-            // TODO : GUI 참조 얻어오는 방식을 하드코딩 하지 않게 바꾸기
-            const target = 
-                this.textureButton.domElement.children[0].children.length > 1 ? this.textureButton.domElement.children[0].children[1] as HTMLElement :
-                this.textureButton.domElement.children[0].children[0] as HTMLElement;
-            if ( target ) {
-                target.style.backgroundImage = `url("${source}")`;
-                target.style.backgroundSize = 'cover'; // 'cover','contain','initial','inherit'
-                target.style.backgroundRepeat = 'no-repeat';
-                target.style.backgroundPosition = 'center';
-                target.style.width = '100px';
-                target.style.height = '100px';
-                target.style.marginLeft = 'auto';
-                target.textContent = '';
-            }
-        }
-    }
-
-    replaceTexture( texture ) {
-        if ( this.targetMaterial ) {
-            this.targetMaterial.map = texture;
-            this.targetMaterial.needsUpdate = true;
-        } else if ( this.context ) {
-            this.context.material.map = texture;
-            this.context.material.needsUpdate = true;
-        }
     }
 
     dispose() {
@@ -862,7 +862,7 @@ class PalletEngine extends PalletElement {
             handleBar.style.display = 'flex';
             handleBar.style.width = '100%';
             handleBar.style.height = '15px';
-            handleBar.style.backgroundColor = 'lightgrey';
+            handleBar.style.backgroundColor = 'lightgray';
             handleBar.style.paddingBottom = '5px';
             handleBar.style.justifyContent = 'end';
 
@@ -907,23 +907,162 @@ class PalletEngine extends PalletElement {
     createGUI() {        
         const pgui = new PalletGUI( 'mode' );
         
+        // system
         EventEmitter.on( 'file-import', ( url ) => {
             this.gltfLoader.load( url, gltf => {
                 this.sceneGraph.add( gltf.scene );
             } );
         } );
 
-        EventEmitter.emit('modify-position-listen', { x: 1, y : 1, z : 0 } );
-        EventEmitter.emit('modify-rotation-listen', { x: 1, y : 1, z : 0 } );
-        EventEmitter.emit('modify-scale-listen', { x: 1, y : 1, z : 0 } );
+        EventEmitter.on( 'file-export', () => {
+            const file = undefined;
+            EventEmitter.emit( 'file-export-listen', file );
+        } );
+
+        EventEmitter.on( 'env-bg', data => {
+
+        } );
+
+        EventEmitter.on( 'env-hdr', data => {
+
+        } );
+
+        EventEmitter.on( 'env-bg', data => {
+
+        } );
+
+        EventEmitter.on( 'env-bg-color', color => {
+            Renderer.Get().setClearColor( color );
+        } );
+
+        EventEmitter.on( 'env-exr', data => {
+
+        } );
+
+        EventEmitter.on( 'env-exposure', value => {
+            Renderer.Get().toneMappingExposure = value;
+        } );
+
+        EventEmitter.on( 'env-dirlight-intensity', value => {
+            this.directionalLight.intensity = value;
+        } );
+
+        EventEmitter.on( 'env-dirlight-color', color => {
+            console.log( color );
+            this.directionalLight.color.setHex( color );
+        } );
+
+        EventEmitter.on( 'env-ambient-intensity', value => {
+            this.ambientLight.intensity = value;
+        } );
+
+        EventEmitter.on( 'env-ambient-color', color => {
+            console.log( color );
+            this.ambientLight.color.setHex( color );
+        } );
+
+        EventEmitter.on('modify-position', data => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                controller.context.position.set( data.x, data.y, data.z );
+            }
+        } );
+        EventEmitter.on('modify-rotation', data => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                controller.context.rotation.set( data.x, data.y, data.z );
+            }
+        } );
+        EventEmitter.on('modify-scale', data => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                controller.context.scale.set( data.x, data.y, data.z );
+            }
+        } );
+
+        let tmp_geometry = undefined;
+        let tmp_material = undefined;
+
+        EventEmitter.on( 'create-box', () => {
+            tmp_geometry = new THREE.BoxGeometry();
+            tmp_material = new THREE.MeshStandardMaterial();
+            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+        } );
+
+        EventEmitter.on( 'create-sphere', () => {
+            tmp_geometry = new THREE.SphereGeometry();
+            tmp_material = new THREE.MeshStandardMaterial();
+            const s = new THREE.Mesh( tmp_geometry, tmp_material );
+            this.sceneGraph.add( s );
+            console.log( s )
+        } );
+
+        EventEmitter.on( 'create-plane', () => {
+            tmp_geometry = new THREE.PlaneGeometry();
+            tmp_material = new THREE.MeshStandardMaterial();
+            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+        } );
+
+        EventEmitter.on( 'create-cone', () => {
+            tmp_geometry = new THREE.ConeGeometry();
+            tmp_material = new THREE.MeshStandardMaterial();
+            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+        } );
+
+        EventEmitter.on( 'create-cylinder', () => {
+            tmp_geometry = new THREE.CylinderGeometry();
+            tmp_material = new THREE.MeshStandardMaterial();
+            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+        } );
+
+        EventEmitter.on( 'create-dirlight', () => {
+            
+        } );
+
+        EventEmitter.on( 'create-pointlight', () => {
+            
+        } );
+
+        EventEmitter.on( 'create-spotlight', () => {
+            
+        } );
+
+        EventEmitter.on( 'create-hemispherelight', () => {
+            
+        } );
+
         
         EventEmitter.emit( 'anim-enable-listen', { value: false } );
-
-        EventEmitter.on( 'modify-position', value => console.log( value ) );
-        EventEmitter.on( 'modify-rotation', value => console.log( value ) );
-        EventEmitter.on( 'modify-scale', value => console.log( value ) );
+        EventEmitter.emit( 'anim-loop-listen', { value: false } );
 
         EventEmitter.on( 'anim-enable', value => console.log( value ) );
+        EventEmitter.on( 'anim-loop', value => console.log( value ) );
+
+        const controller = this.irc as DesktopIRC;
+        const loadTexture = url => {
+            const loader = new THREE.TextureLoader();
+            return loader.load( url );
+        }
+        const assignTexture = (target, key, texture) => {
+            if ( target && target.isMesh ) {
+                if ( target.material ) {
+                    target.material[key] = texture;
+                    target.material.needsUpdate = true;
+                }
+            }
+        }
+
+        EventEmitter.on( 'mat-diffuse', url => {
+            const obj = controller.context;
+            assignTexture( obj, 'map', loadTexture( url ) );
+            EventEmitter.emit( 'mat-diffuse-listen', url );
+        } );
+
+        EventEmitter.on( 'mat-normal', url => {
+            const obj = controller.context;
+            assignTexture( obj, 'normalMap', loadTexture( url ) );
+            EventEmitter.emit( 'mat-normal-listen', url );
+        } );
         
         this.createMonacoEditor();
     }
@@ -953,7 +1092,7 @@ class PalletEngine extends PalletElement {
         this.directionalLight.shadow.camera.near = 1;
         this.directionalLight.shadow.mapSize.width = 2048;
         this.directionalLight.shadow.mapSize.height = 2048;
-        this.directionalLight.position.set( 0, 125, 0 );
+        this.directionalLight.position.set( 0, 5, 0 );
 
         this.sceneGraph.add( this.directionalLight );
         this.ambientLight = new THREE.AmbientLight( 0x6ebad4 );
