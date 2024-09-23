@@ -1,3 +1,4 @@
 node_modules/
 legacy/
 .next/
+.env.local

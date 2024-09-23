@@ -17,8 +17,12 @@ export default function Page() {
     }
 
     useEffect( () => {
+
       if ( PalletPromise === null ) {
-        PalletPromise = import( '../../PalletEngine/module' );
+
+        console.log( process.env.NEXT_PUBLIC_DB_USER )
+
+        PalletPromise = import( '@/PalletEngine/module' );
         PalletPromise.then( pallet => {
           const engine = pallet._module;
           engine.loadGLTF( './vr_showcase_2017.glb', gltf => {
@@ -53,6 +57,7 @@ export default function Page() {
           engine.sceneGraph.add( canvasMesh2 );
 
           engine.createVREnvironment( [ canvasMesh1, canvasMesh2 ] );
+          
         } );
       }
 
@@ -64,6 +69,22 @@ export default function Page() {
       background: "#3c3c3c"
     }
 
+    const onClick = async ( ev ) => {
+      ev.preventDefault();
+      try {
+        const response = await fetch('/api/users', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+  
+        const data = await response.json();
+        console.log('result:', data);
+      } catch (error) {
+        console.error(error);
+      }
+    }
 
     return (
     <div style={styleText}>

@@ -18,7 +18,7 @@ export default function Page() {
 
     useEffect( () => {
       if ( PalletPromise === null ) {
-        PalletPromise = import( '../../PalletEngine/module' );
+        PalletPromise = import( '@/PalletEngine/module' );
         PalletPromise.then( pallet => {
           const engine = pallet._module;
           //'./mario_animacion.glb'
@@ -148,9 +148,8 @@ export default function Page() {
 
 
     return (
-    <div style={styleText}>
       <div>
         <canvas style={styleText} className="view"></canvas>
       </div>
-    </div> );
+    );
 }
