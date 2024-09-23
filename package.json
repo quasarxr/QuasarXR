@@ -17,8 +17,8 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
     "three": "^0.166.1",
-    "three-mesh-bvh": "^0.7.6"
-    "zod": "^3.23.8"
+    "three-mesh-bvh": "^0.7.6",
+    "zod": "^3.23.8",
     "tweakpane": "^4.0.4"
   },
   "scripts": {
