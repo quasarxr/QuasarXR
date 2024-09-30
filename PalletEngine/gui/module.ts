@@ -18,7 +18,7 @@ type PaneParamType = PanePrimitive | PaneVector2 | PaneVector3 | PaneVector4 | P
 
 enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY };
 enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION, ENVIRONMENT, DIRLIGHT, AMBIENTLIGHT, FLOOR };
-enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] = 'POSITION'
+enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] == 'POSITION'
 
 interface GUIData { title : string, emit : string, cat : string, binding : PaneParamType, option : BindingParams };
 

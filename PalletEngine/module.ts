@@ -1015,20 +1015,52 @@ class PalletEngine extends PalletElement {
             this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
         } );
 
-        EventEmitter.on( 'create-dirlight', () => {
-            
+        let light = undefined;
+        const sphereGeometry = new THREE.SphereGeometry( 0.05, 10, 15 );
+        const lightMaterial = new THREE.MeshBasicMaterial({color: 0x00cc00});
+        const lightMaterial1 = new THREE.MeshBasicMaterial({color: 0xcc0000});
+        EventEmitter.on( 'create-dirlight', ( data ) => {
+            light = new THREE.DirectionalLight( data?.color, data?.intensity );
+            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
+            const target = new THREE.Mesh( sphereGeometry, lightMaterial1 );
+            mesh.add( light );
+            mesh.position.set( 0, 2.5, 0 );
+            mesh.attach( target );
+            light.target = target;
+            this.sceneGraph.add( mesh );
         } );
 
-        EventEmitter.on( 'create-pointlight', () => {
-            
+        EventEmitter.on( 'create-pointlight', ( data ) => {
+            light = new THREE.PointLight( 0xff0000, 100 );
+            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
+            mesh.add( light );            
+            this.sceneGraph.add( mesh );            
         } );
 
         EventEmitter.on( 'create-spotlight', () => {
-            
+            light = new THREE.SpotLight( 0xffffff, 100, 5, Math.PI / 6 );
+            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
+            const target = new THREE.Mesh( sphereGeometry, lightMaterial1 );
+            mesh.add( light );
+            mesh.position.set(0, 2.5, 0 );
+            light.target = target;
+            mesh.attach( target );
+            this.sceneGraph.add( mesh );
+            const helper = new THREE.SpotLightHelper( light );
+            mesh.attach( helper );
+            this.addUpdator( () => {
+                helper.update();
+            })
         } );
 
         EventEmitter.on( 'create-hemispherelight', () => {
-            
+            light = new THREE.HemisphereLight( 0x0000ff, 0xff0000, 100 );
+            light.color.setHSL( 0.6, 1, 0.6 );
+            light.groundColor.setHSL( 0.095, 1, 0.75 );
+            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
+            mesh.position.set( 0, 5, 0 );
+            mesh.add( light );
+            this.sceneGraph.add( mesh );
         } );
 
         

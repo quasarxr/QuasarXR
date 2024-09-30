@@ -18,7 +18,7 @@ export default function Page() {
 
     useEffect( () => {
       if ( PalletPromise === null ) {
-        PalletPromise = import( '../../PalletEngine/module' );
+        PalletPromise = import( '../../../PalletEngine/module' );
         PalletPromise.then( pallet => {
           const engine = pallet._module;
         } );
