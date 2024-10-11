@@ -72,7 +72,7 @@ enum RaycastLayer { Default = 0, NoRaycast = 1 };
 function findParentByType( object , type ) {
     if (object.parent instanceof type ) {
         return object.parent; // 부모 요소가 해당 타입인 경우 반환
-    } else if (object.parent !== null) {
+    } else if (object.parent !== null ) {
         return findParentByType(object.parent, type ); // 타입이 아닌 경우 부모 요소로 재귀 호출
     } else {
         return null; // 최상위 부모 요소에 도달할 때까지 타입을 찾지 못한 경우
@@ -417,7 +417,11 @@ class DesktopIRC extends InteractionController {
     
     onIntersection( hits : Array<any> ) {
         let eventObject = null;
-        const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && !h.object.isGround );
+        const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && 
+        !findParentByType( h.object, TransformControlsGizmo ) && 
+        !h.object.isGround && 
+        !h.object.isTransformControlsPlane );
+        
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
@@ -483,7 +487,7 @@ class DesktopIRC extends InteractionController {
         }
     }
 
-    createControls( camera, canvas ) : TransformControls {
+    createControls( camera, canvas ) {
         this.controls = new TransformControls( camera, canvas );
         return this.controls;
     }
@@ -759,7 +763,8 @@ class PalletEngine extends PalletElement {
 
         // create gizmo instance
         const transformer = desktopIRC.createControls( this.camera, canvas );
-        this.sceneGraph.add( transformer );
+        const gizmo = transformer.getHelper();
+        this.sceneGraph.add( gizmo );
         
         // prevent viewport dragging during gizmo interaction
         transformer.addEventListener( 'dragging-changed', event => {
