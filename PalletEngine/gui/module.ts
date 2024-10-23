@@ -2,8 +2,14 @@ import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, Bindin
 import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
-import fs from 'fs';
 import MathUtil from '../utils/math';
+
+// tween
+import TWEEN from 'three/examples/jsm/libs/tween.module';
+
+// plugin
+import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
+
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi ;
 const _GuiIDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph' ];
@@ -16,7 +22,7 @@ interface PaneColor { r: 255, g: 255, b: 255, a: 255 };
 
 type PaneParamType = PanePrimitive | PaneVector2 | PaneVector3 | PaneVector4 | PaneColor;
 
-enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY };
+enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY, TWEEN };
 enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION, ENVIRONMENT, DIRLIGHT, AMBIENTLIGHT, FLOOR };
 enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] == 'POSITION'
 
@@ -27,13 +33,20 @@ const bakeGUIData = ( t : string , e : string , c : string , b = null, opt = nul
     return data;
 }
 
-const fileSelector = ( callback ) => {
-    const fs = FileUtil.FileSelector();
+const fileSelector2 = ( callback, accept = "" ) => {
+    const fs = FileUtil.FileSelector( false , accept );
     fs.addEventListener( 'change', () => {
-        const url = URL.createObjectURL( fs.files[0] );
-        if ( callback ) callback( url );
+        if ( callback ) callback( fs.files[0] );
     } );
 }
+
+const fileSelector = ( callback, accept = "" ) => {
+    fileSelector2( ( file ) => {
+        const url = URL.createObjectURL( file );
+        if ( callback ) callback( url );
+    }, accept );
+}
+
 
 const _GuiDatas : GUIData[][]= [
     [ // system
@@ -66,10 +79,10 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Loop', 'anim-loop', 'checkbox', { value: true } ),
         bakeGUIData( 'Reset', 'anim-reset', 'button' ),
     ], [ // environment
-        bakeGUIData( 'Background', 'env-bg', 'button' ),
+        bakeGUIData( 'Background', 'env-bg', 'file' ),
         bakeGUIData( 'Background\nColor', 'env-bg-color', 'color', { value: 0x3c3c3c }, { view: 'color' } ),
-        bakeGUIData( 'HDR', 'env-hdr', 'button' ),
-        bakeGUIData( 'EXR', 'env-exr', 'button' ),
+        bakeGUIData( 'HDR', 'env-hdr', 'file' ),
+        bakeGUIData( 'EXR', 'env-exr', 'file' ),
         bakeGUIData( 'Exposure', 'env-exposure', 'slider', { value : 1 }, { min: 0, max: 2 } ),
     ], [ // dir light
         bakeGUIData( 'Intensity', 'env-dirlight-intensity', 'slider', { value : 4 }, { min : 0, max : 1000 } ),
@@ -79,6 +92,8 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
         bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
     ], [ // floor
+    ], [ // tween
+        
     ]
 ];
 
@@ -132,6 +147,8 @@ export default class PalletGUI {
 
     createPane( id : string, container : HTMLElement = null ) : PalletPane {
         this.paneMap.set( id, new PalletPane( { container: container } as PaneConfig ) );
+        this.paneMap.get( id ).registerPlugin( PathPickerBundle );
+        console.log( id );
         return this.paneMap.get( id );
     }
 
@@ -181,19 +198,25 @@ export default class PalletGUI {
 
     }
 
-    connectAction( btn : ButtonApi, emitName : string ) {
+    connectAction( btn : ButtonApi, emitName : string, useCallback = true ) {
         const actionName = emitName.replace('-', '' );
-        const func = this.searchMethod( actionName );
-        if ( func ) func.bind( this );
-        btn.on( 'click', () => { 
-            if ( func ) func( ( data ) => EventEmitter.emit( emitName, data ) )
-        } );
+        if ( useCallback ) {
+            const func = this.searchMethod( actionName );
+            if ( func ) func.bind( this );
+            btn.on( 'click', () => { 
+                if ( func ) func( ( data ) => EventEmitter.emit( emitName, data ) )
+            } );
+        } else {            
+            btn.on( 'click', () => { 
+                EventEmitter.emit( emitName, undefined );
+            } );
+        }
     }
     
     connectImageAction( btn : ButtonApi, emitName : string ) {
         EventEmitter.on( emitName + '-listen', data => {
             const div = btn.element.children[1].children[0].children[0] as HTMLElement;
-            div.style.backgroundImage = `url("${data}")`;
+            if ( data ) div.style.backgroundImage = `url(${data})`;
             div.style.backgroundSize = 'cover'; // 'cover','contain','initial','inherit'
             div.style.backgroundRepeat = 'no-repeat';
             div.style.backgroundPosition = 'center';
@@ -229,6 +252,28 @@ export default class PalletGUI {
             if ( el.cat === 'button' ) {
                 const btn = envFolder.addButton( { title: '', label : el.title } );
                 this.connectAction( btn, el.emit );
+                this.connectImageAction( btn, el.emit );
+                EventEmitter.emit( el.emit + '-listen', undefined );
+            } else if ( el.cat === 'file' ) {
+                //envFolder.addExplorer();
+                const picker = envFolder.addBlade( {
+                    label: el.title,
+                    view: 'pathpicker'
+                } ) as PathPickerApi;
+
+                const actionName = el.emit.replace('-', '' );
+                const func = this.searchMethod( actionName );
+
+                const emitFunction = () => {
+                    if ( func ) func( ( file ) => {
+                        console.log ( file );
+                        const url = URL.createObjectURL( file );
+                        EventEmitter.emit( el.emit, url );
+                        picker.setName( file.name );
+                    } );
+                };
+
+                picker.on( emitFunction );
             } else if ( el.cat === 'slider' ) {
                 const target = el.binding as PanePrimitive;
                 const bind = envFolder.addBinding( target, 'value', el.option );
@@ -351,6 +396,18 @@ export default class PalletGUI {
     actionFileExport( cb : Function ) {
         // something ...
         if ( cb ) cb();
+    }
+
+    actionEnvBG( cb: Function ) {
+        fileSelector2( cb, "image/*" );
+    }
+
+    actionEnvHDR( cb: Function ) {
+        fileSelector2( cb, ".hdr, .hdri" );
+    }
+
+    actionEnvEXR( cb: Function ) {
+        fileSelector2( cb, ".exr" );
     }
 
     searchMethod( methodName ) {
