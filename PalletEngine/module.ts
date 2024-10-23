@@ -15,8 +15,6 @@ import { ImageUtils } from 'three/src/extras/ImageUtils';
 //import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 //import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 
-import { Pane } from 'tweakpane';
-
 // shadow
 import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader';
 import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader';
@@ -27,13 +25,12 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton';
 // monaco-editor
 import * as monaco from 'monaco-editor';
 import Editor, { loader } from '@monaco-editor/react';
-// import { UUID } from 'crypto';
 
 // audio
 //import { PositionalAudioHelper } from 'three/examples/jsm/helpers/PositionalAudioHelper';
 
 // hdr
-//import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 
 // vr pointer models
@@ -48,6 +45,8 @@ import EventEmitter from './gui/event';
 import PalletGUI from './gui/module';
 import FileUtil from './utils/file';
 //import MathUtil from './utils/math';
+import TextureUtil from './utils/texture';
+
 
 function mixin( target, ...sources ) {
     Object.assign( target.prototype, ...sources );
@@ -910,8 +909,13 @@ class PalletEngine extends PalletElement {
     }
 
     createGUI() {        
-        const pgui = new PalletGUI( 'mode' );
-        
+        const pgui = new PalletGUI( 'mode' );        
+        const controller = this.irc as DesktopIRC;
+        const loadTexture = url => {
+            const loader = new THREE.TextureLoader();
+            return loader.load( url );
+        };
+
         // system
         EventEmitter.on( 'file-import', ( url ) => {
             this.gltfLoader.load( url, gltf => {
@@ -924,24 +928,43 @@ class PalletEngine extends PalletElement {
             EventEmitter.emit( 'file-export-listen', file );
         } );
 
-        EventEmitter.on( 'env-bg', data => {
-
+        EventEmitter.on( 'env-bg', data => { /* data : URL */
+            this.sceneGraph.background = loadTexture( data );
+            EventEmitter.emit('env-bg-listen', data );
         } );
 
-        EventEmitter.on( 'env-hdr', data => {
+        EventEmitter.on( 'env-hdr', data => { /* data : URL */
+            new RGBELoader().load( data, texture => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.needsUpdate = true;
 
-        } );
+                this.sceneGraph.background = texture;
+                this.sceneGraph.environment = texture;
 
-        EventEmitter.on( 'env-bg', data => {
+                const url = TextureUtil.toImageUrl( texture );
+                console.log( texture );
+                EventEmitter.emit( 'env-hdr-listen', url );
 
+                this.sceneGraph.traverse( object => {
+                    if ( object.isMesh ) {
+                        object.material.envMap = texture;
+                    }
+                } )
+            } );
         } );
 
         EventEmitter.on( 'env-bg-color', color => {
             Renderer.Get().setClearColor( color );
         } );
 
-        EventEmitter.on( 'env-exr', data => {
-
+        EventEmitter.on( 'env-exr', data => { /* data : URL */
+            new EXRLoader().load( data, texture => {
+                this.sceneGraph.background = texture;
+                this.sceneGraph.environment = texture;
+                const url = TextureUtil.toImageUrl( texture );
+                EventEmitter.emit( 'env-exr-listen', url );
+            });
         } );
 
         EventEmitter.on( 'env-exposure', value => {
@@ -991,15 +1014,19 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'create-box', () => {
             tmp_geometry = new THREE.BoxGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            const b = new THREE.Mesh( tmp_geometry, tmp_material );
+            b.castShadow = true;
+            b.receiveShadow = true;
+            this.sceneGraph.add( b );
         } );
 
         EventEmitter.on( 'create-sphere', () => {
             tmp_geometry = new THREE.SphereGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
             const s = new THREE.Mesh( tmp_geometry, tmp_material );
+            s.castShadow = true;
+            s.receiveShadow = true;
             this.sceneGraph.add( s );
-            console.log( s )
         } );
 
         EventEmitter.on( 'create-plane', () => {
@@ -1075,11 +1102,6 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'anim-enable', value => console.log( value ) );
         EventEmitter.on( 'anim-loop', value => console.log( value ) );
 
-        const controller = this.irc as DesktopIRC;
-        const loadTexture = url => {
-            const loader = new THREE.TextureLoader();
-            return loader.load( url );
-        }
         const assignTexture = (target, key, texture) => {
             if ( target && target.isMesh ) {
                 if ( target.material ) {
