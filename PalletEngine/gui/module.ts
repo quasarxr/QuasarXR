@@ -1,4 +1,4 @@
-import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams } from 'tweakpane';
+import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams, BladeApi, ListBladeApi } from 'tweakpane';
 import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
@@ -9,10 +9,12 @@ import TWEEN from 'three/examples/jsm/libs/tween.module';
 
 // plugin
 import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
+import { RenderViewBundle, RenderViewApi } from './plugins/renderview/plugin';
+import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tween';
 
 
-type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi ;
-const _GuiIDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph' ];
+type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
+const _GUI_IDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph', 'sub-view' ];
 
 interface PanePrimitive { value : number | boolean | string };
 interface PaneVector2 { x : number, y : number };
@@ -22,8 +24,8 @@ interface PaneColor { r: 255, g: 255, b: 255, a: 255 };
 
 type PaneParamType = PanePrimitive | PaneVector2 | PaneVector3 | PaneVector4 | PaneColor;
 
-enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY, TWEEN };
-enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION, ENVIRONMENT, DIRLIGHT, AMBIENTLIGHT, FLOOR };
+enum TAB_PAGE_ID { SYSTEM, CREATION, PROPERTY, TWEEN, EVENT };
+enum GUI_DATA_ID { SYSTEM, CREATION, TRANSFORM, MATERIAL, ANIMATION, ENVIRONMENT, DIRLIGHT, AMBIENTLIGHT, FLOOR, TWEEN };
 enum TRANSFORM_ID { POSITION, ROTATION, SCALE }; // NOTE : TRANSFORM_ID[0] == 'POSITION'
 
 interface GUIData { title : string, emit : string, cat : string, binding : PaneParamType, option : BindingParams };
@@ -47,12 +49,16 @@ const fileSelector = ( callback, accept = "" ) => {
     }, accept );
 }
 
+const _GuiContexts : GUIData[] = [
+    bakeGUIData( 'Toggle Property', 'context-property', 'button' ),
+    bakeGUIData( 'Reset Camera', 'context-camera', 'button' ),
+];
 
 const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ),
         bakeGUIData( 'Export', 'file-export', 'button' ),
-        bakeGUIData( 'Publish', 'sys-publish', 'button' ),
+        //bakeGUIData( 'Publish', 'sys-publish', 'button' ),
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
         bakeGUIData( 'Sphere', 'create-sphere', 'button' ),
@@ -63,6 +69,7 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'PointLight', 'create-pointlight', 'button' ),
         bakeGUIData( 'SpotLight', 'create-spotlight', 'button' ),
         bakeGUIData( 'HemisphereLight', 'create-hemispherelight', 'button' ),
+        bakeGUIData( 'Camera', 'create-camera', 'button' ),
     ], [ // transform
         bakeGUIData( 'Position', 'modify-position', 'p3d', { x: 0, y: 0, z: 0 } ),
         bakeGUIData( 'Rotation', 'modify-rotation', 'p3d', { x: 0, y: 0, z: 0 } ),
@@ -84,6 +91,7 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'HDR', 'env-hdr', 'file' ),
         bakeGUIData( 'EXR', 'env-exr', 'file' ),
         bakeGUIData( 'Exposure', 'env-exposure', 'slider', { value : 1 }, { min: 0, max: 2 } ),
+        bakeGUIData( 'Ground', 'env-ground', 'checkbox', { value : true } ),
     ], [ // dir light
         bakeGUIData( 'Intensity', 'env-dirlight-intensity', 'slider', { value : 4 }, { min : 0, max : 1000 } ),
         bakeGUIData( 'Color', 'env-dirlight-color', 'color', { value : 0x94f8ff }, { view: 'color' } ),
@@ -92,8 +100,21 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
         bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
     ], [ // floor
-    ], [ // tween
-        
+    ], [ // tween        
+        bakeGUIData( 'Type', 'tween-prop-type', 'text', { x: 0, y: 0, z: 0} ),
+        bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
+        bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
+        bakeGUIData( 'Property', '', 'separator' ),        
+        bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'pos' }, [ 
+            { text: 'Position', value: 'pos' }, 
+            { text: 'Rotation', value: 'rot' }, 
+            { text: 'Scale', value: 'scale' } ] ),
+        bakeGUIData( 'Duration', 'tween-add-duration', 'number', { value: 1 } ),
+        bakeGUIData( 'From', 'tween-add-from', 'p3d', { x: 0, y: 0, z: 0}, { disabled: true } ),
+        bakeGUIData( 'To', 'tween-add-to', 'p3d', { x: 0, y: 0, z: 0} ),
+        bakeGUIData( 'Add', 'tween-add', 'button' ),
+        bakeGUIData( 'Remove', 'tween-remove', 'button' ),
+        bakeGUIData( 'Preview', 'tween-preview', 'button' ),
     ]
 ];
 
@@ -121,8 +142,17 @@ class PalletPane extends Pane {
         this.rootElement.style.top = `${top}px`;
     }
 
+    resize( width: number, height : number ) {
+        this.rootElement.style.width = `${width}px`;
+        this.rootElement.style.height = `${height}px`;
+    }
+
     get rootElement() {
         return this.element.parentElement;
+    }
+
+    get position() {
+        return this.rootElement.getBoundingClientRect();
     }
 }
 
@@ -138,17 +168,21 @@ export default class PalletGUI {
     initialize( mode : string ) {
         this.paneMap = new Map<string, PalletPane> ();
         this.guiMap = new Map<string, GuiInterface> ();
-        _GuiIDs.forEach( name => {
+        _GUI_IDs.forEach( name => {
             this.createPane( name ).hidden = true;
         } );
 
         this.configData();
+        this.configContext();
+        this.configSubView();
     }
 
     createPane( id : string, container : HTMLElement = null ) : PalletPane {
         this.paneMap.set( id, new PalletPane( { container: container } as PaneConfig ) );
         this.paneMap.get( id ).registerPlugin( PathPickerBundle );
-        console.log( id );
+        this.paneMap.get( id ).registerPlugin( RenderViewBundle );
+        this.paneMap.get( id ).registerPlugin( TweenGraphBundle );
+        //console.log( id );
         return this.paneMap.get( id );
     }
 
@@ -176,18 +210,53 @@ export default class PalletGUI {
         return this.guiMap.get( uid );
     }
 
+    configContext() {
+        const inst = this.paneMap.get('oncanvas-menu');
+
+        _GuiContexts.forEach( el => {
+            if ( el.cat === 'button' ) {
+                const btn = inst.addButton( { title: el.title } );
+                this.connectAction( btn, el.emit, false );
+            }
+        } )
+
+        this.guiMap.set( 'context', { uid: 'context', pi : inst, events: [] } );
+
+        EventEmitter.on( 'context-property', () => {
+            this.toggleProperty();
+            this.showContext( false, 0, 0 );
+        } );
+    }
+
     configData() {        
         const inst = this.paneMap.get('property-panel');
         inst.hidden = false;
+        inst.rootElement.style.width = '300px';
+        //inst.rootElement.style.height = '99vh';
+        inst.rootElement.style.overflowY = 'auto';
+        inst.rootElement.style.scrollbarWidth = 'thin';
+        inst.rootElement.style.scrollbarColor = '#ccc rgba(95, 95, 95, 0.4)';
         const tab = inst.addTab( {
             pages: [
                 { title: 'System' },
                 { title: 'Object' },
                 { title: 'Property' },
+                { title: 'Tween'},
+                { title: 'Event'},
             ]
         } );
 
+        // tab.on( 'select', (event) => {
+        //     const selectIndex = event.index;
+        //     if ( selectIndex === TAB_PAGE_ID.TWEEN ) {
+        //         playBtn.hidden = true;
+        //     } else {
+        //         playBtn.hidden = false;
+        //     }
+        // } );
+
         this.guiMap.set( 'property-tab', { uid : 'property-tab', pi : tab, events: [] } );
+
         
         this.deploySystem( tab.pages[ TAB_PAGE_ID.SYSTEM ] );
         this.deployCreation( tab.pages[ TAB_PAGE_ID.CREATION ] );
@@ -195,7 +264,23 @@ export default class PalletGUI {
         this.deployTransform( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deployMaterial( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deplayAnimation( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
+        this.deployTween( tab.pages[ TAB_PAGE_ID.TWEEN ] );
 
+    }
+
+    configSubView() {
+        const size = { x : 250, y : 150 };
+        const inst = this.paneMap.get('sub-view');
+        const rect = this.paneMap.get('property-panel').position;
+        inst.hidden = false;
+        const api = inst.addBlade( {
+            view: 'renderview'
+        } ) as RenderViewApi;
+        api.enabled( false );
+        inst.resize( size.x, size.y );
+        inst.reposition( rect.x - size.x, rect.y );
+
+        this.guiMap.set('subview', { uid: 'subview', pi: api, events: [] });
     }
 
     connectAction( btn : ButtonApi, emitName : string, useCallback = true ) {
@@ -241,6 +326,16 @@ export default class PalletGUI {
     }
 
     deploySystem( page : TabPageApi ) {
+        
+        const playBtn = page.addButton( { title: 'Play' } );
+        this.connectAction( playBtn, 'editor-play', false );
+
+        const pubBtn = page.addButton( { title: 'Publish' } );
+        this.connectAction( pubBtn, 'editor-pub', false );
+
+        const vrBtn = page.addButton( { title: 'Enter VR' } );
+        this.connectAction( vrBtn, 'editor-vr', false );
+
         const fileFolder = page.addFolder( { title : 'File' } );
         _GuiDatas[ GUI_DATA_ID.SYSTEM ].forEach( el => {
             const btn = fileFolder.addButton( { title: el.title } );
@@ -280,6 +375,10 @@ export default class PalletGUI {
                 bind.label = el.title;
                 this.connectBinding( bind, target, el.emit, el.emit + '-listen' );
             } else if ( el.cat === 'color' ) {
+                const bind = envFolder.addBinding( el.binding as PanePrimitive, 'value', el.option );
+                bind.label = el.title;
+                this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
+            } else if ( el.cat === 'checkbox' ) {
                 const bind = envFolder.addBinding( el.binding as PanePrimitive, 'value', el.option );
                 bind.label = el.title;
                 this.connectBinding( bind, el.binding, el.emit, el.emit + '-listen' );
@@ -324,7 +423,6 @@ export default class PalletGUI {
             const bind = f.addBinding( el, 'binding' );
             bind.label = el.title;
             const target = _GuiDatas[ GUI_DATA_ID.TRANSFORM ][ index ].binding;
-            console.log( el.emit );
             this.connectBinding( bind, target, el.emit, el.emit+'-listen' );
         } );
         this.guiMap.set( 'transform-folder', { uid : 'transform-folder', pi : f, events: [] } );
@@ -381,6 +479,50 @@ export default class PalletGUI {
         } );
     }
 
+    deployTween( page : TabPageApi ) {
+        const blade = page.addBlade( { view: 'tweengraph' } );
+        _GuiDatas[ GUI_DATA_ID.TWEEN ].forEach( ( el, index, arr ) => {
+            if ( el.cat === 'list' ) {
+                const b = page.addBlade( { view: el.cat, label: el.title, options: el.option, value: (el.binding as PanePrimitive).value } ) as ListBladeApi<string>;
+                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
+                b.on( 'change', ev => { console.log( ev.value ) } );
+                //this.connectBinding( b, target, el.emit, el.emit + 'listen' );
+                this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
+            } else if ( el.cat === 'button' ) {
+                const btn = page.addButton( { title: el.title } );
+                this.connectAction( btn, el.emit, false );
+            } else if ( el.cat === 'p3d' ) {
+                const b = page.addBinding( el, 'binding', el.option );                
+                b.label = el.title;
+                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
+                this.connectBinding( b, target, el.emit, el.emit + '-listen' );
+                this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
+            } else if ( el.cat === 'separator' ) {
+                page.addBlade( { view:'separator' } );
+            } else if  (el.cat === 'text' ) {
+                const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: 'none' } );
+                b.disabled = true;
+            } else if ( el.cat === 'number' ) {
+                const b = page.addBinding( el.binding as PanePrimitive, 'value' );
+                this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
+            }
+        } );
+        this.guiMap.set( 'tween-graph', {uid: 'tween-graph', pi: blade, events: [] } );
+
+        EventEmitter.on( 'tween-add-type', data => {
+            console.log( data );
+        } );
+
+        EventEmitter.on( 'tween-add-from', data => {
+            console.log( data );
+        } );
+
+        EventEmitter.on( 'tween-add-to', data => {
+            console.log( data );
+            
+        } );
+    }
+
     actionFileImport( cb : Function ) {
         fileSelector( cb );
     }
@@ -390,6 +532,18 @@ export default class PalletGUI {
     }
 
     actionMatNormal( cb : Function ) {
+        fileSelector( cb );
+    }
+
+    actionMatMetalic( cb : Function ) {
+        fileSelector( cb );
+    }
+
+    actionMatSpecular( cb : Function ) {
+        fileSelector( cb );
+    }
+
+    actionMatRoughness( cb : Function ) {
         fileSelector( cb );
     }
 
@@ -421,5 +575,34 @@ export default class PalletGUI {
         //     }
         // }
         return this[ findName ];
+    }
+
+    showContext( display : boolean, left : number, top : number ) {
+        const context = this.paneMap.get('oncanvas-menu');
+        context.hidden = !display;
+        context.rootElement.style.position = 'absolute';
+        context.rootElement.style.left = `${left}px`;
+        context.rootElement.style.top = `${top}px`;
+    }
+
+    toggleProperty() {
+        const property = this.paneMap.get('property-panel');
+        property.hidden = !property.hidden;
+    }
+
+    get cameraView() : RenderViewApi {
+        return this.guiMap.get('subview').pi as RenderViewApi;
+    }
+
+    get tweenGraph() : TweenGraphApi {
+        return this.guiMap.get('tween-graph').pi as TweenGraphApi;
+    }
+
+    get tweenBindings() {
+        const duration = this.guiMap.get('tween-add-duration').pi.exportState()['value'];
+        const to = this.guiMap.get('tween-add-to').pi.exportState().binding['value'];
+        const from = this.guiMap.get('tween-add-from').pi.exportState().binding['value'];
+        const type = this.guiMap.get('tween-add-type').pi.exportState()['value'];
+        return { duration, to, from, type };
     }
 }
