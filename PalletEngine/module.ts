@@ -11,8 +11,9 @@ import { SelectionHelper } from 'three/examples/jsm/interactive/SelectionHelper'
 import { ImageUtils } from 'three/src/extras/ImageUtils';
 
 // effect
-//import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-//import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 //import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 
 // shadow
@@ -46,7 +47,11 @@ import PalletGUI from './gui/module';
 import FileUtil from './utils/file';
 //import MathUtil from './utils/math';
 import TextureUtil from './utils/texture';
+// helpers
+import { CameraHelper } from './utils/helpers';
 
+// tween
+import TWEEN from 'three/examples/jsm/libs/tween.module';
 
 function mixin( target, ...sources ) {
     Object.assign( target.prototype, ...sources );
@@ -58,6 +63,8 @@ let _defaultCube : THREE.Mesh;
 let _version = { major: 0, minor: 1, patch: 0, get : () => `Pallet v.${_version.major}.${_version.minor}.${_version.patch}` };
 let _product = { name : 'Pallet' };
 let _xr_initialized = false;
+const _renderTarget = new THREE.WebGLRenderTarget( 250, 150 );
+const _pixelBuffer = new Uint8Array( 150000 );
 
 // replace extension functions
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -160,6 +167,7 @@ class DesktopIRC extends InteractionController {
 
     constructor() {
         super({});
+
         this.hitPoint = new THREE.Vector3();
         this.selectionBox = new SelectionBox();
         this.selectionHelper = new SelectionHelper( Renderer.Get(), 'selectBox' );
@@ -286,7 +294,6 @@ class DesktopIRC extends InteractionController {
             const eventStates = { drag: isDragging, canvasEvent: isCanvasEvent };
             _module.controller.enabled = true;
             this.selectionHelper.element.classList.add('disabled');
-            this.disableContextGUI();
 
             if ( this.shiftPressed ) {
                 this.selectionBox.endPoint.set(
@@ -367,18 +374,23 @@ class DesktopIRC extends InteractionController {
     }
 
     onLeftClick( pointer : THREE.Vector2, state ) {
-        if ( this.controls.axis || state.drag || ! state.canvasEvent ) return
+        if ( this.controls.axis || state.drag || ! state.canvasEvent ) {            
+            _module.gui.showContext(false, 0, 0 );
+            return;
+        }
         this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ) , _module.camera );
         const hits = this.raycaster.intersectObject( _module.sceneGraph );
         this.onIntersection( hits );
+        _module.gui.showContext(false, 0, 0 );
     }
 
     onRightClick( pointer : THREE.Vector2, state ) {
         this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ), _module.camera );
         const hits = this.raycaster.intersectObject( _module.sceneGraph );
-        console.log( state );
-        if ( state.drag == false )
+        if ( state.drag == false ) {
             this.onContext( hits, pointer );
+        }
+        _module.gui.showContext( true, pointer.x, pointer.y );
     }
 
     onWheelClick( pointer : THREE.Vector2, state ) {
@@ -409,29 +421,36 @@ class DesktopIRC extends InteractionController {
             this.hitPoint.copy( hitMeshes[0].point );
         } else { // hangs nothing
             this.context = null;
-            //this.enableContextGUI( position, 'add' );
-            //this.disableContextGUI();
         }
     }
     
     onIntersection( hits : Array<any> ) {
         let eventObject = null;
         const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && 
-        !findParentByType( h.object, TransformControlsGizmo ) && 
-        !h.object.isGround && 
-        !h.object.isTransformControlsPlane );
+            !findParentByType( h.object, TransformControlsGizmo ) && 
+            !h.object.isGround && 
+            !h.object.isTransformControlsPlane );
         
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             this.targetMaterial = null;
             if ( group ) {
-                this.controls.attach( group );
-                this.context = group;
-                eventObject = group;
+                if ( group === this.context ) {                    
+                    this.controls.attach( hitMeshes[ 0 ].object );
+                    this.context = hitMeshes[ 0 ].object;
+                    eventObject = hitMeshes[ 0 ].object;
+                } else {
+                    this.controls.attach( group );
+                    this.context = group;
+                    eventObject = group;
+                }
             } else if ( hitMeshes[0].object.isHelper ) {
                 this.controls.attach( hitMeshes[0].object.light );
                 this.context = hitMeshes[0].object.light;
+            } else if ( hitMeshes[0].object.type === 'CameraHelper' ) {
+                this.controls.attach( hitMeshes[0].object.userData.camera );
+                this.context = hitMeshes[0].object.userData.camera;
             } else {
                 const pickedObject = hitMeshes[0].object;
                 eventObject = pickedObject;
@@ -474,29 +493,26 @@ class DesktopIRC extends InteractionController {
             this.controls.setMode( 'translate' );
             this.context = null;
         }
-        
-        if ( eventObject ) {
+
+        // enter only object3d
+        if ( eventObject ) { 
             if ( eventObject.userData.events ) {
                 eventObject.userData.events.forEach( event => {
                     if ( event.trigger == 'click' ) {
                        event.handler();
-                    }   
-                   } );
+                    }
+                } );
             }
+
+            if ( eventObject.userData.tweens ) {
+                EventEmitter.emit( 'tween-prop-update', eventObject.userData.tweens );
+            }            
         }
     }
 
     createControls( camera, canvas ) {
         this.controls = new TransformControls( camera, canvas );
         return this.controls;
-    }
-
-    enableContextGUI( position : THREE.Vector2, mode : string ) {
-
-    }
-
-    disableContextGUI() {
-
     }
 
     dispose() {
@@ -660,6 +676,7 @@ class PalletEngine extends PalletElement {
     
     sceneGraph : THREE.Scene;
     camera : THREE.PerspectiveCamera;
+    subCameras : THREE.Object3D[];
     cameraPivot : THREE.Object3D;
     directionalLight : THREE.DirectionalLight;
     ambientLight : THREE.AmbientLight;
@@ -690,17 +707,26 @@ class PalletEngine extends PalletElement {
 
     // monaco-editor
     monacoInstance : monaco.editor.IStandaloneCodeEditor;
-    editorElement : HTMLElement;    
+    editorElement : HTMLElement;
     editScriptIndex : number;    
 
     // hdr
     hdrUrl : string;
+
+    //gui
+    gui : PalletGUI;
+    drawSubCamera : number; // draw camera index
+
+    //
+    composer : EffectComposer;
+    renderPass : RenderPass;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
         this.sceneGraph = new THREE.Scene();
         this.cameraPivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+        this.subCameras = [];
         this.sceneGraph.add( this.camera );
         this.sceneGraph.add( this.cameraPivot );
         this.gltfLoader = new GLTFLoader();
@@ -721,10 +747,11 @@ class PalletEngine extends PalletElement {
         const renderer = Renderer.Create( { antialias: true, canvas: canvas, alpha: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true } as RenderOptions );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.setClearColor( 0x3c3c3c );
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        //renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.physicallyCorrectLights = true;
         renderer.xr.enabled = true;
         renderer.setAnimationLoop( () => {
             const dt = this.clock.getDelta();
@@ -737,28 +764,14 @@ class PalletEngine extends PalletElement {
             renderer.setSize( window.innerWidth, window.innerHeight );
         } );
 
-
         // interaction setting
         this.irc = new DesktopIRC();
         this.irc.parent = this;
         this.irc.connectEvent();
 
-        // user interface
-        //this.screenGUI = new GUI( { title : 'Properties' } );
-        //this.screenGUI.close();
-        //this.contextGUIOuter = document.createElement( 'div' );
-        //this.contextGUIOuter.addEventListener( 'mouseup', event => event.stopPropagation() ); // prevent pass event to document
-
         // below interface refactoring to generic
         // cast desktop interaction interface
         const desktopIRC = this.irc as DesktopIRC;
-
-        // link user interface to interaction
-        //desktopIRC.contextGUI = this.contextGUIOuter;
-        //document.body.appendChild( this.contextGUIOuter );
-
-        // context menu setting
-        //this.contextGUI = new GUI( { container : this.contextGUIOuter, title : 'Context' } );
 
         // create gizmo instance
         const transformer = desktopIRC.createControls( this.camera, canvas );
@@ -841,6 +854,13 @@ class PalletEngine extends PalletElement {
         this.helperGroup = new THREE.Group();
 
         this.hdrUrl = 'studio_small_08_4k.exr';
+        this.drawSubCamera = -1;
+        this.renderPass = new RenderPass( this.sceneGraph, this.camera );
+        //const outputPass = new OutputPass();
+        this.composer = new EffectComposer( Renderer.Get(), _renderTarget );
+        this.composer.renderToScreen = false;
+        this.composer.addPass( this.renderPass );
+        //this.composer.addPass( outputPass );
 
         this.createScene();
         this.createGUI();
@@ -908,8 +928,8 @@ class PalletEngine extends PalletElement {
         } );
     }
 
-    createGUI() {        
-        const pgui = new PalletGUI( 'mode' );        
+    createGUI() {
+        this.gui = new PalletGUI( 'mode' );
         const controller = this.irc as DesktopIRC;
         const loadTexture = url => {
             const loader = new THREE.TextureLoader();
@@ -943,7 +963,6 @@ class PalletEngine extends PalletElement {
                 this.sceneGraph.environment = texture;
 
                 const url = TextureUtil.toImageUrl( texture );
-                console.log( texture );
                 EventEmitter.emit( 'env-hdr-listen', url );
 
                 this.sceneGraph.traverse( object => {
@@ -1013,7 +1032,7 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-box', () => {
             tmp_geometry = new THREE.BoxGeometry();
-            tmp_material = new THREE.MeshStandardMaterial();
+            tmp_material = new THREE.MeshPhysicalMaterial();
             const b = new THREE.Mesh( tmp_geometry, tmp_material );
             b.castShadow = true;
             b.receiveShadow = true;
@@ -1077,6 +1096,7 @@ class PalletEngine extends PalletElement {
             mesh.position.set(0, 2.5, 0 );
             light.target = target;
             mesh.attach( target );
+            light.castShadow = true;
             this.sceneGraph.add( mesh );
             const helper = new THREE.SpotLightHelper( light );
             mesh.attach( helper );
@@ -1095,12 +1115,43 @@ class PalletEngine extends PalletElement {
             this.sceneGraph.add( mesh );
         } );
 
+        EventEmitter.on( 'create-camera', () => {
+            const camera = new THREE.PerspectiveCamera();
+            camera.near = 0.5;
+            camera.far = 10;
+            camera.aspect = 1.67;
+            
+            const collider = new THREE.Mesh( new THREE.BoxGeometry( 0.1, 0.1, 0.1 ), new THREE.MeshBasicMaterial( { color: 0xff0000 } ) );
+            collider.type = 'CameraHelper';
+            collider.userData.camera = camera;
+
+            const helper = new THREE.CameraHelper( camera );
+            helper.add( collider );
+            
+            camera.userData.helper = helper;
+            camera.userData.collider = collider;
+
+            this.addUpdator( dt => { 
+                helper.update();
+            } );
+
+            this.subCameras.push( helper );
+            this.sceneGraph.add( camera );
+            this.sceneGraph.add( helper );
+        } );
+
         
         EventEmitter.emit( 'anim-enable-listen', { value: false } );
         EventEmitter.emit( 'anim-loop-listen', { value: false } );
 
         EventEmitter.on( 'anim-enable', value => console.log( value ) );
         EventEmitter.on( 'anim-loop', value => console.log( value ) );
+
+        EventEmitter.on( 'env-ground', value => {
+            this.sceneGraph.userData.gridPlane.visible = value;
+            this.sceneGraph.userData.gridHelper.visible = value;
+            this.shadowGroup.visible = value;
+        } );
 
         const assignTexture = (target, key, texture) => {
             if ( target && target.isMesh ) {
@@ -1122,7 +1173,85 @@ class PalletEngine extends PalletElement {
             assignTexture( obj, 'normalMap', loadTexture( url ) );
             EventEmitter.emit( 'mat-normal-listen', url );
         } );
+
+        EventEmitter.on( 'mat-metalic', url => {
+            const obj = controller.context;
+            assignTexture( obj, 'metalnessMap', loadTexture( url ) );
+            EventEmitter.emit( 'mat-metalic-listen', url );
+        } );
+
+        EventEmitter.on( 'mat-roughness', url => {
+            const obj = controller.context;
+            assignTexture( obj, 'roughnessMap', loadTexture( url ) );
+            EventEmitter.emit( 'mat-roughness-listen', url );
+        } );
+
+        EventEmitter.on( 'mat-specular', url => {
+            const obj = controller.context;
+            assignTexture( obj, 'specularMap', loadTexture( url ) );
+            EventEmitter.emit( 'mat-specular-listen', url );
+        } );
         
+        EventEmitter.on('mat-color', data => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                if ( controller.context.isMesh ) {
+                    if ( controller.context.material ) {
+                        controller.context.material.color.setHex( data );
+                    }
+                }                
+            }
+        } );
+
+        EventEmitter.on( 'tween-prop-update', data => {
+            console.log( data );
+            this.gui.tweenGraph.update( data );
+        } );
+
+        EventEmitter.on( 'tween-add', data => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context && controller.context.isObject3D ) {
+                console.log( this.gui.tweenBindings );
+                if( controller.context.userData.tweens === undefined ) controller.context.userData.tweens = [];
+                const type = this.gui.tweenBindings.type;
+                switch( type ) {
+                    case 'rot':
+                        const r = { ...this.gui.tweenBindings.to }
+                        const rt = new TWEEN.Tween( controller.context.rotation ).to( r , 1000 )
+                            .easing( TWEEN.Easing.Quadratic.Out );                            
+                        controller.context.userData.tweens.push( rt );
+                        break;
+                    case 'pos':
+                        const p = { ...this.gui.tweenBindings.to };
+                        const pt = new TWEEN.Tween( controller.context.position ).to( p, 1000 )
+                            .easing( TWEEN.Easing.Quadratic.Out );
+                        controller.context.userData.tweens.push( pt );
+                        break;
+                    case 'scale':
+                        const s = { ...this.gui.tweenBindings.to };
+                        const st = new TWEEN.Tween( controller.context.scale ).to( s, 1000 )
+                            .easing( TWEEN.Easing.Quadratic.Out );
+                        controller.context.userData.tweens.push( st );
+                        break;
+                }
+                
+            }
+        } );
+        
+        EventEmitter.on( 'tween-remove', data => { 
+
+        } );
+
+        EventEmitter.on( 'tween-preview', data => {            
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                console.log( controller.context.userData );
+                if ( controller.context.userData.tweens ) {
+                    controller.context.userData.tweens.map( t => t.start() );
+                }
+            }
+        } );
+
         this.createMonacoEditor();
     }
 
@@ -1169,21 +1298,20 @@ class PalletEngine extends PalletElement {
             this.camera.layers.enable( key );
         }
 
-
         //load hdr
-        (async () => {
-            const exrLoader = new EXRLoader();
-            exrLoader.load( this.hdrUrl, ( texture ) => {
+        //(async () => {
+            //const exrLoader = new EXRLoader();
+            //exrLoader.load( this.hdrUrl, ( texture ) => {
                 //this.sceneGraph.background = texture;                
-                const pmremGenerator = new THREE.PMREMGenerator( Renderer.Get() );
-                pmremGenerator.compileEquirectangularShader();
+                //const pmremGenerator = new THREE.PMREMGenerator( Renderer.Get() );
+                //pmremGenerator.compileEquirectangularShader();
     
-                const renderTarget = pmremGenerator.fromEquirectangular( texture );
+                //const renderTarget = pmremGenerator.fromEquirectangular( texture );
     
-                this.sceneGraph.environment = renderTarget.texture;
+                //this.sceneGraph.environment = renderTarget.texture;
                 //this.sceneGraph.background = renderTarget.texture;
-            } );
-        })();
+            //} );
+        //})();
     }
 
     clearScene() {
@@ -1255,6 +1383,8 @@ class PalletEngine extends PalletElement {
 
         this.controller.update();
 
+        TWEEN.update();
+
         // shadow routine begin
 
         /** 
@@ -1284,7 +1414,7 @@ class PalletEngine extends PalletElement {
         // and reset the override material
         this.sceneGraph.overrideMaterial = null;
         this.sceneGraph.userData.gridPlane.visible = true;
-        this.sceneGraph.userData.gridHelper.visible = true;        
+        this.sceneGraph.userData.gridHelper.visible = true;
         transformControls.visible = gizmoVisible;
 
         const blur = 0.2;
@@ -1300,12 +1430,13 @@ class PalletEngine extends PalletElement {
         this.sceneGraph.background = initialBackground;
         */
         // shadow routine end
+        // main render 
         Renderer.Get().render( this.sceneGraph, this.camera );
+        this.renderCameraView();
     }
 
     addUpdator( func : (dt : number) => void, bind: THREE.Object3D = undefined, enabled : boolean = true ) {
         let updator : Updator = { func : func, enabled : enabled, archetype : func.toString() };
-        console.log( bind );
         updator.func = updator.func.bind( bind );
         this.updateFunctions.push( updator );
         return updator;
@@ -1381,6 +1512,27 @@ class PalletEngine extends PalletElement {
         if ( ! object.userData.events ) object.userData.events = []
         object.userData.events.push( event );
         console.log( object.userData.events );
+    }
+
+    get defaultCamera() {
+        return this.camera;
+    }
+
+    renderCameraView() {
+        const controller = this.irc as DesktopIRC;
+        if ( controller.context && controller.context.isCamera ) {
+            this.renderPass.camera = controller.context;
+            this.composer.render();
+            Renderer.Get().readRenderTargetPixels( this.composer.readBuffer, 0, 0, 250, 150, _pixelBuffer );
+            const api = this.gui.cameraView;
+            api.enabled( true );
+            api.getImageBuffer().data.set( _pixelBuffer );
+            api.render();
+        } else {
+            const api = this.gui.cameraView;
+            api.clear();
+            api.enabled( false );
+        }
     }
 }
 
