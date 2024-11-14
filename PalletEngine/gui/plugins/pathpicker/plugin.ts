@@ -50,14 +50,12 @@ export class PathPickerApi extends BladeApi<PathPickerBladeController> {
     }
 
     public on( cb ) {
-        console.log( cb );
         this.controller.valueController.view.buttonElement.addEventListener('click', event => {
             cb();
         } );
     }
 
     public setName( name ) {
-        console.log( 'setName', name );
         this.controller.valueController.view.inputElement.setAttribute('value', name );
     }
 }
