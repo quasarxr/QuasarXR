@@ -17,7 +17,7 @@ export class TweenGraphApi extends BladeApi<TweenGraphBladeController> {
     public clear() {
 
     }
-    public update( data : [] ) {
+    public update( data : Map< unknown, unknown > ) {
         console.log( data );
     }
 }

@@ -47,8 +47,7 @@ import PalletGUI from './gui/module';
 import FileUtil from './utils/file';
 //import MathUtil from './utils/math';
 import TextureUtil from './utils/texture';
-// helpers
-import { CameraHelper } from './utils/helpers';
+import { TweenManager } from './utils/tween';
 
 // tween
 import TWEEN from 'three/examples/jsm/libs/tween.module';
@@ -720,6 +719,9 @@ class PalletEngine extends PalletElement {
     //
     composer : EffectComposer;
     renderPass : RenderPass;
+
+    // tween manager
+    tweenMgr : TweenManager;
             
     constructor( canvas : HTMLCanvasElement ) {
         super();
@@ -861,6 +863,8 @@ class PalletEngine extends PalletElement {
         this.composer.renderToScreen = false;
         this.composer.addPass( this.renderPass );
         //this.composer.addPass( outputPass );
+
+        this.tweenMgr = new TweenManager();
 
         this.createScene();
         this.createGUI();
@@ -1211,31 +1215,16 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'tween-add', data => {
             const controller = this.irc as DesktopIRC;
             if ( controller.context && controller.context.isObject3D ) {
-                console.log( this.gui.tweenBindings );
-                if( controller.context.userData.tweens === undefined ) controller.context.userData.tweens = [];
-                const type = this.gui.tweenBindings.type;
-                switch( type ) {
-                    case 'rot':
-                        const r = { ...this.gui.tweenBindings.to }
-                        const rt = new TWEEN.Tween( controller.context.rotation ).to( r , 1000 )
-                            .easing( TWEEN.Easing.Quadratic.Out );                            
-                        controller.context.userData.tweens.push( rt );
-                        break;
-                    case 'pos':
-                        const p = { ...this.gui.tweenBindings.to };
-                        const pt = new TWEEN.Tween( controller.context.position ).to( p, 1000 )
-                            .easing( TWEEN.Easing.Quadratic.Out );
-                        controller.context.userData.tweens.push( pt );
-                        break;
-                    case 'scale':
-                        const s = { ...this.gui.tweenBindings.to };
-                        const st = new TWEEN.Tween( controller.context.scale ).to( s, 1000 )
-                            .easing( TWEEN.Easing.Quadratic.Out );
-                        controller.context.userData.tweens.push( st );
-                        break;
-                }
-                
+                this.tweenMgr.add( {
+                    object : controller.context,
+                    type : this.gui.tweenBindings.type,
+                    from : { x : 0, y : 0, z : 0 },
+                    to : { ...this.gui.tweenBindings.to },
+                    duration : this.gui.tweenBindings.duration,
+                    easing : TWEEN.Easing.Quadratic.Out
+                } );
             }
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData );
         } );
         
         EventEmitter.on( 'tween-remove', data => { 
@@ -1245,10 +1234,7 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'tween-preview', data => {            
             const controller = this.irc as DesktopIRC;
             if ( controller.context ) {
-                console.log( controller.context.userData );
-                if ( controller.context.userData.tweens ) {
-                    controller.context.userData.tweens.map( t => t.start() );
-                }
+                this.tweenMgr.preview( controller.context );
             }
         } );
 
@@ -1383,7 +1369,7 @@ class PalletEngine extends PalletElement {
 
         this.controller.update();
 
-        TWEEN.update();
+        this.tweenMgr.update();
 
         // shadow routine begin
 

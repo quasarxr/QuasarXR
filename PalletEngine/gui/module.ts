@@ -105,9 +105,9 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
         bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
         bakeGUIData( 'Property', '', 'separator' ),        
-        bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'pos' }, [ 
-            { text: 'Position', value: 'pos' }, 
-            { text: 'Rotation', value: 'rot' }, 
+        bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'position' }, [ 
+            { text: 'Position', value: 'position' }, 
+            { text: 'Rotation', value: 'rotation' }, 
             { text: 'Scale', value: 'scale' } ] ),
         bakeGUIData( 'Duration', 'tween-add-duration', 'number', { value: 1 } ),
         bakeGUIData( 'From', 'tween-add-from', 'p3d', { x: 0, y: 0, z: 0}, { disabled: true } ),
@@ -599,10 +599,10 @@ export default class PalletGUI {
     }
 
     get tweenBindings() {
-        const duration = this.guiMap.get('tween-add-duration').pi.exportState()['value'];
+        const duration = this.guiMap.get('tween-add-duration').pi.exportState().binding['value'];
         const to = this.guiMap.get('tween-add-to').pi.exportState().binding['value'];
         const from = this.guiMap.get('tween-add-from').pi.exportState().binding['value'];
-        const type = this.guiMap.get('tween-add-type').pi.exportState()['value'];
+        const type = this.guiMap.get('tween-add-type').pi.exportState()['value'] as string;
         return { duration, to, from, type };
     }
 }
