@@ -148,6 +148,12 @@ class InteractionController {
 
 // TODO : THREE.OrbitControls combine in this class or customize it.
 // the box selection has bug from key, mouse event when window focus changed
+
+interface IntersectionParam {
+    object : THREE.Object3D;
+}
+type InterSectionCallback = ( param : IntersectionParam ) => any;
+
 class DesktopIRC extends InteractionController {
     controls : TransformControls;
     context : THREE.Object3D;
@@ -163,6 +169,7 @@ class DesktopIRC extends InteractionController {
     textureButton : Controller;
     targetMaterial : THREE.Material;
     isDrawing : boolean;
+    onLeftClickCallbacks : InterSectionCallback[];
 
     constructor() {
         super({});
@@ -180,6 +187,8 @@ class DesktopIRC extends InteractionController {
         this.cursorEnd = new THREE.Vector2();
 
         this.isDrawing = false;
+
+        this.onLeftClickCallbacks = [];
     }
 
     drawGhost() {
@@ -435,7 +444,8 @@ class DesktopIRC extends InteractionController {
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             this.targetMaterial = null;
             if ( group ) {
-                if ( group === this.context ) {                    
+                if ( group === this.context ) {             
+                    // TODO select children       
                     this.controls.attach( hitMeshes[ 0 ].object );
                     this.context = hitMeshes[ 0 ].object;
                     eventObject = hitMeshes[ 0 ].object;
@@ -464,7 +474,6 @@ class DesktopIRC extends InteractionController {
                 EventEmitter.emit('modify-rotation-listen', { x: r.x, y : r.y, z : r.z } );
                 const s = this.context.scale;
                 EventEmitter.emit('modify-scale-listen', { x: s.x, y : s.y, z : s.z } );
-
                 
                 if ( this.context.isMesh && this.context.material ) {
                     const diffuse = this.context.material.map ? ImageUtils.getDataURL(this.context.material.map.image) : undefined;
@@ -485,6 +494,7 @@ class DesktopIRC extends InteractionController {
                     EventEmitter.emit( 'mat-roughness-listen', undefined );
                     EventEmitter.emit( 'mat-specular-listen', undefined );
                 }
+
             }
         } else {                
             this.controls.detach();
@@ -492,6 +502,7 @@ class DesktopIRC extends InteractionController {
             this.controls.setMode( 'translate' );
             this.context = null;
         }
+        this.onLeftClickCallbacks.map( f => f( { object : this.context } ) );
 
         // enter only object3d
         if ( eventObject ) { 
@@ -518,8 +529,8 @@ class DesktopIRC extends InteractionController {
 
     }
 
-    select( object : THREE.Object3D ) {
-        
+    registerOnSelect( callback : InterSectionCallback ) {
+        this.onLeftClickCallbacks.push( callback );
     }
 }
 
@@ -1212,6 +1223,13 @@ class PalletEngine extends PalletElement {
             this.gui.tweenGraph.update( data );
         } );
 
+        this.gui.tweenGraph.onUpdateModel( ( index0 , index1 ) => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context && controller.context.isObject3D ) {
+                this.tweenMgr.reoderingData( controller.context, index0, index1 );
+            }
+        } );
+
         EventEmitter.on( 'tween-add', data => {
             const controller = this.irc as DesktopIRC;
             if ( controller.context && controller.context.isObject3D ) {
@@ -1224,7 +1242,7 @@ class PalletEngine extends PalletElement {
                     easing : TWEEN.Easing.Quadratic.Out
                 } );
             }
-            this.gui.tweenGraph.update( this.tweenMgr.tweenData );
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
         
         EventEmitter.on( 'tween-remove', data => { 
@@ -1235,6 +1253,15 @@ class PalletEngine extends PalletElement {
             const controller = this.irc as DesktopIRC;
             if ( controller.context ) {
                 this.tweenMgr.preview( controller.context );
+            }
+        } );
+        
+        controller.registerOnSelect( ( param : IntersectionParam ) => {
+            if ( param.object ) {
+                const data = this.tweenMgr.elements( param.object );
+                this.gui.tweenGraph.update( data );
+            } else {
+                this.gui.tweenGraph.clear();
             }
         } );
 

@@ -92,6 +92,7 @@ export class TweenManager {
         const tween = new TweenElement(  new TWEEN.Tween( param.object[ param.type ] ).to( param.to, param.duration * 1000 )
             .easing( TWEEN.Easing.Quadratic.Out ) );
         
+        console.log( tween.object );
         if ( this.data.has( param.object ) ) {
             this.data.get( param.object ).push( tween );
         } else {
@@ -105,7 +106,7 @@ export class TweenManager {
         const elements = this.data.get( object );        
         if ( elements ) {
             elements.map( ( tween, index, arr ) => {
-                console.log( tween.valuesStart );
+                console.log( tween );
                 if ( index < arr.length - 1 ) {
                     tween.chain( [ arr[ index + 1 ] ] );
                 }
@@ -119,18 +120,13 @@ export class TweenManager {
 
     preview( object : Object3D ) {
         const array = this.makeSequence( object );
-        const buffer = {
-            position : object.position.clone(),
-            rotation : object.rotation.clone(),
-            scale : object.scale.clone()
-        };
-        if ( array ) {            
-            array.at(0).start();
+        const context = this.rollbackContext( object );
+
+        if ( array ) {
             array.at(-1).complete( () => {
-                object.position.copy( buffer.position );
-                object.rotation.copy( buffer.rotation );
-                object.scale.copy( buffer.scale );
+                //this.executeRollback( context, object );
             } );
+            array.at(0).start();
         }        
     }
 
@@ -143,14 +139,34 @@ export class TweenManager {
         }
     }
 
+    rollbackContext( object : Object3D ) {
+        const context = {
+            position : object.position.clone(),
+            rotation : object.rotation.clone(),
+            scale : object.scale.clone()
+        };
+        return context;
+    }
+
+    executeRollback( context, object : Object3D ) {
+        object.position.copy( context.position );
+        object.rotation.copy( context.rotation );
+        object.scale.copy( context.scale );
+    }
+
     elements( object : Object3D ) {
-        if ( object ) {
-            
-        }
+        console.log( this.data, object );
+        return this.data.get( object );
     }
 
     update() {
         TWEEN.update();
+    }
+
+    reoderingData( target : Object3D, from : number, to : number ) {
+        const element = this.data.get(target).splice(from, 1)[0];
+        this.data.get(target).splice(to, 0, element);
+        console.log( this.data.get( target ) );
     }
 
     get tweenData() {

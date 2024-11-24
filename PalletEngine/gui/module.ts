@@ -481,6 +481,7 @@ export default class PalletGUI {
 
     deployTween( page : TabPageApi ) {
         const blade = page.addBlade( { view: 'tweengraph' } );
+
         _GuiDatas[ GUI_DATA_ID.TWEEN ].forEach( ( el, index, arr ) => {
             if ( el.cat === 'list' ) {
                 const b = page.addBlade( { view: el.cat, label: el.title, options: el.option, value: (el.binding as PanePrimitive).value } ) as ListBladeApi<string>;
