@@ -25,7 +25,7 @@ export default function Page() {
         PalletPromise = import( '@/PalletEngine/module' );
         PalletPromise.then( pallet => {
           const engine = pallet._module;
-          engine.loadGLTF( './vr_showcase_2017.glb', gltf => {
+          engine.loadGLTF( '/vr_showcase_2017.glb', gltf => {
             gltf.scene.position.set( 0, 0.2, 0 );
           } );
 

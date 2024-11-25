@@ -22,7 +22,7 @@ export default function Page() {
         PalletPromise.then( pallet => {
           const engine = pallet._module;
           //'./mario_animacion.glb'
-          engine.loadGLTF( './daft_punk_in_end_of_line_club.glb', gltf => {
+          engine.loadGLTF( '/daft_punk_in_end_of_line_club.glb', gltf => {
             gltf.scene.position.set( 0, 0.15, 0);
             gltf.scene.scale.set( 0.05, 0.05, 0.05 );
             const mixer = new THREE.AnimationMixer( gltf.scene );
@@ -69,7 +69,7 @@ export default function Page() {
             }, gltf.scene );
           } );
 
-          engine.loadGLTF( './speaker.glb', gltf => {
+          engine.loadGLTF( '/speaker.glb', gltf => {
             gltf.scene.position.set( 3, 1, 0 );
             gltf.scene.scale.set( 0.5, 0.5, 0.5 );
             gltf.scene.rotation.set( 1.57, 0, 0 );
@@ -84,7 +84,7 @@ export default function Page() {
               const audio1 = new THREE.PositionalAudio( engine.camera.userData.listener );
               gltf.scene.add( audio );
               speaker.add( audio1 );
-              engine.loadAudio( './Around_the_World.mp3', buffer => {
+              engine.loadAudio( '/Around_the_World.mp3', buffer => {
                   audio.setBuffer( buffer );
                   audio.autoplay = true;
                   audio.loop = true;
