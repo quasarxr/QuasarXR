@@ -10,7 +10,7 @@ import TWEEN from 'three/examples/jsm/libs/tween.module';
 // plugin
 import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
 import { RenderViewBundle, RenderViewApi } from './plugins/renderview/plugin';
-import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tween';
+import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tweenGraph';
 
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
@@ -101,10 +101,10 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
     ], [ // floor
     ], [ // tween        
-        bakeGUIData( 'Type', 'tween-prop-type', 'text', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'Property', '', 'separator' ),        
+        // bakeGUIData( 'Type', 'tween-prop-type', 'text', { x: 0, y: 0, z: 0} ),
+        // bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
+        // bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
+        //bakeGUIData( 'Property', '', 'separator' ),
         bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'position' }, [ 
             { text: 'Position', value: 'position' }, 
             { text: 'Rotation', value: 'rotation' }, 
@@ -112,9 +112,9 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Duration', 'tween-add-duration', 'number', { value: 1 } ),
         bakeGUIData( 'From', 'tween-add-from', 'p3d', { x: 0, y: 0, z: 0}, { disabled: true } ),
         bakeGUIData( 'To', 'tween-add-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'Add', 'tween-add', 'button' ),
-        bakeGUIData( 'Remove', 'tween-remove', 'button' ),
-        bakeGUIData( 'Preview', 'tween-preview', 'button' ),
+        // bakeGUIData( 'Add', 'tween-add', 'button' ),
+        // bakeGUIData( 'Remove', 'tween-remove', 'button' ),
+        // bakeGUIData( 'Preview', 'tween-preview', 'button' ),
     ]
 ];
 
