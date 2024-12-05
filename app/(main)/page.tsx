@@ -1,5 +1,6 @@
 import styles from './styles.module.css';
 import Link from 'next/link';
+import BmcaWidget from '../components/bmac/coffee';
 
 export default function Page() {
 
@@ -28,6 +29,7 @@ export default function Page() {
             </Link>
         </div>
       </div>
+      <BmcaWidget></BmcaWidget>
     </div>
   );
 }
