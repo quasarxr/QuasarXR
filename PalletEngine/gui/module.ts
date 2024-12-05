@@ -1,4 +1,4 @@
-import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams, BladeApi, ListBladeApi } from 'tweakpane';
+import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams, BladeApi, ListBladeApi, TextBladeApi } from 'tweakpane';
 import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
@@ -100,21 +100,14 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
         bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
     ], [ // floor
-    ], [ // tween        
-        // bakeGUIData( 'Type', 'tween-prop-type', 'text', { x: 0, y: 0, z: 0} ),
-        // bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
-        // bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        //bakeGUIData( 'Property', '', 'separator' ),
+    ], [ // tween
+        bakeGUIData( 'Name', 'tween-add-name', 'text', { value: '' } ),
         bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'position' }, [ 
-            { text: 'Position', value: 'position' }, 
+            { text: 'Position', value: 'position' },
             { text: 'Rotation', value: 'rotation' }, 
             { text: 'Scale', value: 'scale' } ] ),
         bakeGUIData( 'Duration', 'tween-add-duration', 'number', { value: 1 } ),
-        bakeGUIData( 'From', 'tween-add-from', 'p3d', { x: 0, y: 0, z: 0}, { disabled: true } ),
         bakeGUIData( 'To', 'tween-add-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        // bakeGUIData( 'Add', 'tween-add', 'button' ),
-        // bakeGUIData( 'Remove', 'tween-remove', 'button' ),
-        // bakeGUIData( 'Preview', 'tween-preview', 'button' ),
     ]
 ];
 
@@ -312,7 +305,7 @@ export default class PalletGUI {
         } );
     }
 
-    connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
+connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
         binding.on( 'change', (event) => {
             EventEmitter.emit( emitName, event.value );
         } );
@@ -485,9 +478,11 @@ export default class PalletGUI {
         _GuiDatas[ GUI_DATA_ID.TWEEN ].forEach( ( el, index, arr ) => {
             if ( el.cat === 'list' ) {
                 const b = page.addBlade( { view: el.cat, label: el.title, options: el.option, value: (el.binding as PanePrimitive).value } ) as ListBladeApi<string>;
-                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
                 b.on( 'change', ev => { console.log( ev.value ) } );
-                //this.connectBinding( b, target, el.emit, el.emit + 'listen' );
+                EventEmitter.on( el.emit + '-listen', data => {
+                    console.log( data );
+                    b.value = data;
+                } );
                 this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
             } else if ( el.cat === 'button' ) {
                 const btn = page.addButton( { title: el.title } );
@@ -501,11 +496,17 @@ export default class PalletGUI {
             } else if ( el.cat === 'separator' ) {
                 page.addBlade( { view:'separator' } );
             } else if  (el.cat === 'text' ) {
-                const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: 'none' } );
-                b.disabled = true;
+                const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: (el.binding as PanePrimitive).value } ) as TextBladeApi<string>;
+                this.guiMap.set( el.emit, {uid: el.emit, pi: b, events: [] } );
+                EventEmitter.on( el.emit + '-listen', data => {          
+                    b.value = data;
+                } );
             } else if ( el.cat === 'number' ) {
                 const b = page.addBinding( el.binding as PanePrimitive, 'value' );
+                b.label = el.title;                
+                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
                 this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
+                this.connectBinding( b, target, el.emit, el.emit + '-listen' );
             }
         } );
         this.guiMap.set( 'tween-graph', {uid: 'tween-graph', pi: blade, events: [] } );
@@ -514,14 +515,19 @@ export default class PalletGUI {
             console.log( data );
         } );
 
-        EventEmitter.on( 'tween-add-from', data => {
-            console.log( data );
-        } );
-
         EventEmitter.on( 'tween-add-to', data => {
             console.log( data );
             
         } );
+
+        EventEmitter.on( 'tweenGraph-item-update', data => {
+            console.log( data.type, data.name, data.duration, data.valuesEnd );
+            EventEmitter.emit( 'tween-add-type-listen', data.type );
+            EventEmitter.emit( 'tween-add-name-listen', data.name );
+            EventEmitter.emit( 'tween-add-duration-listen', { value : data.duration / 1000 } );
+            EventEmitter.emit( 'tween-add-to-listen', { x : data.valuesEnd.x, y : data.valuesEnd.y, z : data.valuesEnd.z } );
+        } );
+
     }
 
     actionFileImport( cb : Function ) {
@@ -602,8 +608,8 @@ export default class PalletGUI {
     get tweenBindings() {
         const duration = this.guiMap.get('tween-add-duration').pi.exportState().binding['value'];
         const to = this.guiMap.get('tween-add-to').pi.exportState().binding['value'];
-        const from = this.guiMap.get('tween-add-from').pi.exportState().binding['value'];
         const type = this.guiMap.get('tween-add-type').pi.exportState()['value'] as string;
-        return { duration, to, from, type };
+        const name = this.guiMap.get('tween-add-name').pi.exportState()['value'] as string;
+        return { duration, to, type, name };
     }
 }

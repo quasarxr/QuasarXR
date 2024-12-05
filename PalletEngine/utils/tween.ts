@@ -7,13 +7,19 @@ interface Vector3 {
     z : number | undefined;
 }
 
-interface TweenParam { 
+interface TweenAddParam { 
     object : Object3D;
+    name : string | undefined;
     type : string;
     from : Vector3;
     to : Vector3;
     duration : number;
     easing : Function;
+}
+
+interface TweenRemoveParam {
+    object : Object3D;
+    index : number;
 }
 
 let _tweenID = 0;
@@ -23,12 +29,20 @@ function generateTweenID() {
 
 export class TweenElement {
     private readonly _id : number;
+    private _type : string;
+    private _name : string;
     private _tween : TWEEN.Tween;
     private _enabled : boolean;
-    constructor( tween ) {
+    constructor( tween : TWEEN.Tween, name : string = undefined, type : string = undefined ) {
         this._id = generateTweenID();
+        if ( name === '' || name === undefined || name === null ) {
+            this._name = `tween-${this._id}`;
+        } else {
+            this._name = name;
+        }
         this._tween = tween;
         this._enabled = true;
+        this._type = type;
     }
     start() {
         // ... all children start tween
@@ -52,6 +66,14 @@ export class TweenElement {
         return this._id;
     }
 
+    get type() {
+        return this._type;
+    }
+
+    get name() {
+        return this._name;
+    }
+
     get duration() {
         return this._tween.getDuration();
     }
@@ -66,6 +88,10 @@ export class TweenElement {
 
     get valuesStart() {
         return this._tween._valuesStart;
+    }
+    
+    get valuesEnd() {
+        return this._tween._valuesEnd;
     }
 
     get enabeld() {
@@ -82,24 +108,31 @@ export class TweenSequence {
 }
 
 export class TweenManager {
-    private data : Map< Object3D, [ TweenElement ] >;
+    private data : Map< Object3D, TweenElement[] >;
 
     constructor() {
-        this.data = new Map< Object3D, [ TweenElement ] >();
+        this.data = new Map< Object3D, TweenElement[] >();
     }
 
-    add( param : TweenParam ) {
+    add( param : TweenAddParam ) {
         const tween = new TweenElement(  new TWEEN.Tween( param.object[ param.type ] ).to( param.to, param.duration * 1000 )
-            .easing( TWEEN.Easing.Quadratic.Out ) );
-        
-        console.log( tween.object );
-        if ( this.data.has( param.object ) ) {
-            this.data.get( param.object ).push( tween );
-        } else {
-            this.data.set( param.object, [ tween ] );
+            .easing( TWEEN.Easing.Quadratic.Out ), param.name, param.type );
+        return this.data.set( param.object, [ ...this.data.get( param.object ) || [], tween ] as TweenElement[] );
+    }
+
+    remove( param : TweenRemoveParam ) {
+        const data = this.getData( param.object );
+        if ( param.index ) {
+            data?.splice( param.index, 1 );
         }
-        console.log( this.data.get( param.object ) );
-        return this.data.get( param.object );
+    }
+
+    getData( object : Object3D ) {
+        let data = null;
+        if ( this.data.has( object ) ) {
+            data = this.data.get( object );
+        }
+        return data;
     }
 
     makeSequence( object : Object3D ) {

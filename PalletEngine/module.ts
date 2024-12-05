@@ -515,7 +515,7 @@ class DesktopIRC extends InteractionController {
             }
 
             if ( eventObject.userData.tweens ) {
-                EventEmitter.emit( 'tween-prop-update', eventObject.userData.tweens );
+                EventEmitter.emit( 'tweenGraph-update', eventObject.userData.tweens );
             }            
         }
     }
@@ -1218,9 +1218,42 @@ class PalletEngine extends PalletElement {
             }
         } );
 
-        EventEmitter.on( 'tween-prop-update', data => {
+        EventEmitter.on( 'tweenGraph-update', data => {
             console.log( data );
             this.gui.tweenGraph.update( data );
+        } );
+
+        EventEmitter.on( 'tweenGraph-update-signal', index => {
+            const controller = this.irc as DesktopIRC;
+            const tween = this.tweenMgr.tweenData.get( controller.context ).at( index );
+            EventEmitter.emit( 'tweenGraph-item-update', tween );
+        } );
+
+        this.gui.tweenGraph.onTweenAdd( () => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context && controller.context.isObject3D ) {
+                this.tweenMgr.add( {
+                    object : controller.context,
+                    type : this.gui.tweenBindings.type,
+                    from : { x : 0, y : 0, z : 0 },
+                    to : { ...this.gui.tweenBindings.to },
+                    duration : this.gui.tweenBindings.duration,
+                    easing : TWEEN.Easing.Quadratic.Out,
+                    name : this.gui.tweenBindings.name
+                } );
+            }
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
+        } );
+        
+        this.gui.tweenGraph.onTweenRemove( () => {
+
+        } );
+
+        this.gui.tweenGraph.onTweenPreview( () => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                this.tweenMgr.preview( controller.context );
+            }
         } );
 
         this.gui.tweenGraph.onUpdateModel( ( index0 , index1 ) => {
@@ -1239,14 +1272,16 @@ class PalletEngine extends PalletElement {
                     from : { x : 0, y : 0, z : 0 },
                     to : { ...this.gui.tweenBindings.to },
                     duration : this.gui.tweenBindings.duration,
-                    easing : TWEEN.Easing.Quadratic.Out
+                    easing : TWEEN.Easing.Quadratic.Out,
+                    name : this.gui.tweenBindings.name
                 } );
             }
             this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
         
-        EventEmitter.on( 'tween-remove', data => { 
-
+        EventEmitter.on( 'tween-remove', data => {
+            this.tweenMgr.remove( { object : controller.context, index : data }  );
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
 
         EventEmitter.on( 'tween-preview', data => {            

@@ -21,7 +21,7 @@ export class TweenGraphApi extends BladeApi<TweenGraphBladeController> {
     public clear() {
         this.controller.viewClear();
     }
-    public update( data : [ unknown ] ) {
+    public update( data : unknown[] ) {
         this.controller.viewUpdate( data );
     }
 
@@ -78,7 +78,7 @@ export class TweenGraphBladeController extends BladeController<TweenGraphView> {
         this.assignViewEvents();
     }
 
-    public viewUpdate( data : [ unknown ] ) {
+    public viewUpdate( data : unknown[] ) {
         this.view.updateGraph( data );
     }
 
@@ -122,6 +122,7 @@ export class TweenGraphView implements View {
         this.element.classList.add( className() );
         config.viewProps.bindClassModifiers( this.element );
         this.graph = doc.createElement( 'div' );
+        this.graph.setAttribute( 'tabindex', '-1' );
         this.graph.classList.add(className('g'));
         
         this.element.appendChild( this.graph );
@@ -134,7 +135,7 @@ export class TweenGraphView implements View {
         this.controlAdd.classList.add( className( 'btn' ) );
         this.controlAdd.textContent = 'Add';
         this.controlAdd.addEventListener( 'click', event => {
-            EventEmitter.emit('tween-add', undefined);
+            EventEmitter.emit('tween-add', undefined );
         } );
         this.controlArea.appendChild( this.controlAdd );
         
@@ -142,7 +143,9 @@ export class TweenGraphView implements View {
         this.controlRemove.classList.add( className( 'btn' ) );
         this.controlRemove.textContent = 'Remove';
         this.controlRemove.addEventListener( 'click', event => {
-            EventEmitter.emit( 'tween-remove', undefined );
+            const index = this.selectedElement?.getAttribute( 'graphIndex' );
+            EventEmitter.emit( 'tween-remove', index );
+
         } );
         this.controlArea.appendChild( this.controlRemove );
 
@@ -163,24 +166,21 @@ export class TweenGraphView implements View {
         this.dropInsertIndex = -1;
     }
 
-    updateGraph( data : [ unknown ] ) {
+    updateGraph( data : unknown[] ) {
         this.clearGraph();
         if ( data instanceof Array ) {
             data.forEach( ( item, index, arr ) => {
-                this.graph.appendChild( this.createGraphItem( item, index ) );
+                this.graph.appendChild( this.createItem( item, index ) );
             } );
         }
     }
 
-    updateModel() {
-
-    }
-
-    createGraphItem( data, index ) : HTMLElement {
+    createItem( data, index ) : HTMLElement {
         const element = this.document.createElement( 'div' );
         element.draggable = true;
         element.classList.add( className('item') );
-        element.textContent = `tween-${data._id}`;
+        element.textContent = data['name'];
+        element.setAttribute( 'graphIndex', `${index}` );
 
         element.addEventListener( 'mousedown', e => {
             e.stopPropagation();
@@ -189,8 +189,7 @@ export class TweenGraphView implements View {
             }
             element.classList.add( 'dragging' );
             this.draggingElement = element;
-            this.dragStartIndex = Array.from( this.graph.children ).indexOf(element);
-            console.log( 'drag start index : ', this.dragStartIndex );
+            this.dragStartIndex = Array.from( this.graph.children ).indexOf( element );
         } );
 
         element.addEventListener( 'mouseup', e => {
@@ -198,6 +197,8 @@ export class TweenGraphView implements View {
             this.selectedElement?.classList.remove( 'selected' );
             this.selectedElement = element;
             element.classList.toggle( 'selected' );
+            
+            EventEmitter.emit( 'tweenGraph-update-signal', element.getAttribute( 'graphIndex' ) );
         } );
 
         element.addEventListener( 'dragstart', event => {
@@ -271,6 +272,18 @@ export class TweenGraphView implements View {
 
             this.dragStartIndex = -1;
             this.dropInsertIndex = -1;
+        } );
+
+        this.graph.addEventListener( 'keydown', event => {
+            console.log( event );
+            switch( event.key ) {
+                case 'CtrlLeft':
+                    console.log( 'ctrl' );
+                    break;
+                case 'ShiftLeft':
+                    console.log( 'shift' );
+                    break;
+            }
         } );
     }
 
@@ -350,6 +363,7 @@ export const TweenGraphBundle : TpPluginBundle = {
         overflow-y: auto;
         scrollbar-width: thin;
         scrollbar-color: #ccc rgba(105, 105, 105, 0.4);
+        outline: none;
     }
     .tp-tween-graphv_item {
         margin: 3px;
