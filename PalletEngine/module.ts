@@ -1219,7 +1219,6 @@ class PalletEngine extends PalletElement {
         } );
 
         EventEmitter.on( 'tweenGraph-update', data => {
-            console.log( data );
             this.gui.tweenGraph.update( data );
         } );
 
@@ -1229,17 +1228,26 @@ class PalletEngine extends PalletElement {
             EventEmitter.emit( 'tweenGraph-item-update', tween );
         } );
 
+        EventEmitter.on( 'tweenModel-update-signal', data => {
+            const controller = this.irc as DesktopIRC;
+            const bindings = this.gui.tweenBindings;
+            const element = this.tweenMgr.getData( controller.context ).at( this.gui.tweenGraph.cursorIndex );
+            element.updateData( { object : controller.context, name : bindings.name, type : bindings.type, to : { ...bindings.to }, duration : bindings.duration } );
+            console.log( element );
+        } );
+
         this.gui.tweenGraph.onTweenAdd( () => {
             const controller = this.irc as DesktopIRC;
             if ( controller.context && controller.context.isObject3D ) {
+                const bindings = this.gui.tweenBindings;
                 this.tweenMgr.add( {
                     object : controller.context,
-                    type : this.gui.tweenBindings.type,
+                    type : bindings.type,
                     from : { x : 0, y : 0, z : 0 },
-                    to : { ...this.gui.tweenBindings.to },
-                    duration : this.gui.tweenBindings.duration,
+                    to : { ...bindings.to },
+                    duration : bindings.duration,
                     easing : TWEEN.Easing.Quadratic.Out,
-                    name : this.gui.tweenBindings.name
+                    name : bindings.name
                 } );
             }
             this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
@@ -1266,17 +1274,19 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'tween-add', data => {
             const controller = this.irc as DesktopIRC;
             if ( controller.context && controller.context.isObject3D ) {
+                const bindings = this.gui.tweenBindings;
+                console.log( bindings );
                 this.tweenMgr.add( {
                     object : controller.context,
-                    type : this.gui.tweenBindings.type,
+                    type : bindings.type,
                     from : { x : 0, y : 0, z : 0 },
-                    to : { ...this.gui.tweenBindings.to },
-                    duration : this.gui.tweenBindings.duration,
+                    to : { ...bindings.to },
+                    duration : bindings.duration,
                     easing : TWEEN.Easing.Quadratic.Out,
-                    name : this.gui.tweenBindings.name
+                    name : bindings.name
                 } );
+                this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
             }
-            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
         
         EventEmitter.on( 'tween-remove', data => {

@@ -17,6 +17,14 @@ interface TweenAddParam {
     easing : Function;
 }
 
+interface TweenUpdateParam {
+    object : Object3D;
+    name : string;
+    type : string;
+    duration : number;
+    to : Vector3;
+}
+
 interface TweenRemoveParam {
     object : Object3D;
     index : number;
@@ -35,7 +43,7 @@ export class TweenElement {
     private _enabled : boolean;
     constructor( tween : TWEEN.Tween, name : string = undefined, type : string = undefined ) {
         this._id = generateTweenID();
-        if ( name === '' || name === undefined || name === null ) {
+        if ( name === '' || name === undefined || name === null || /tween-\d/.exec( name ) ) {
             this._name = `tween-${this._id}`;
         } else {
             this._name = name;
@@ -70,16 +78,24 @@ export class TweenElement {
         return this._type;
     }
 
+    set type( value ) {
+        this._type = value;
+    }
+
     get name() {
         return this._name;
+    }
+
+    set name( value ) {
+        this._name = value;
     }
 
     get duration() {
         return this._tween.getDuration();
     }
 
-    set duration( d ) {
-        this._tween.duration( d );
+    set duration( value ) {
+        this._tween.duration( value );
     }
 
     get object() {
@@ -89,9 +105,17 @@ export class TweenElement {
     get valuesStart() {
         return this._tween._valuesStart;
     }
+
+    set valuesStart( value ) {
+        this._tween._valuesStart = value;
+    }
     
     get valuesEnd() {
         return this._tween._valuesEnd;
+    }
+
+    set valuesEnd( value ) {
+        this._tween._valuesEnd = value;
     }
 
     get enabeld() {
@@ -100,6 +124,15 @@ export class TweenElement {
 
     set enabled( value ) {
         this._enabled = value;
+    }
+
+    updateData( payload : TweenUpdateParam ) {
+        console.log( payload );
+        this._name = payload.name;
+        this._type = payload.type;
+        this._tween._object = payload.object[ payload.type ];
+        this._tween.to( payload.to, payload.duration * 1000 );
+        console.log( this );
     }
 }
 
@@ -127,7 +160,7 @@ export class TweenManager {
         }
     }
 
-    getData( object : Object3D ) {
+    getData( object : Object3D ) : TweenElement[] {
         let data = null;
         if ( this.data.has( object ) ) {
             data = this.data.get( object );

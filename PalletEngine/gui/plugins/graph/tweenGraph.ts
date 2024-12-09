@@ -44,6 +44,14 @@ export class TweenGraphApi extends BladeApi<TweenGraphBladeController> {
     public onTweenPreview( callback ) {
         this.setCallback( CB_KEY.PREVIEW, callback );
     }
+
+    public updateName( name : string ) {
+        this.controller.updateName( name );
+    }
+
+    public get cursorIndex() {
+        return this.controller.cursorIndex;
+    }
 }
 
 interface ControllerConfig {
@@ -84,6 +92,14 @@ export class TweenGraphBladeController extends BladeController<TweenGraphView> {
 
     public viewClear() {
         this.view.clearGraph();
+    }
+
+    public updateName( name : string ) {
+        this.view.changeElementName( name );
+    }
+
+    public get cursorIndex() {
+        return this.view.cursorIndex;
     }
 
     private assignViewEvents() {
@@ -173,6 +189,10 @@ export class TweenGraphView implements View {
                 this.graph.appendChild( this.createItem( item, index ) );
             } );
         }
+    }
+
+    changeElementName( name : string ) {
+        if ( this.selectedElement ) this.selectedElement.textContent = name;
     }
 
     createItem( data, index ) : HTMLElement {
@@ -288,6 +308,7 @@ export class TweenGraphView implements View {
     }
 
     clearGraph() {
+        this.deSelectItem();
         while( this.graph.firstChild ) {
             this.graph.removeChild( this.graph.firstChild );
         }
@@ -315,6 +336,15 @@ export class TweenGraphView implements View {
             this.selectedElement?.classList.remove( 'selected' );
             this.selectedElement = null;
         }
+    }
+
+    public get cursorIndex() {
+        if ( this.selectedElement ) {
+            return Number( this.selectedElement.getAttribute( 'graphIndex' ) );
+        } else {
+            return undefined;
+        }
+        
     }
 }
 
@@ -376,6 +406,7 @@ export const TweenGraphBundle : TpPluginBundle = {
         user-select: none;
         opacity: 1;
         transition: margin 0.25s;
+        min-height: 13px;
     }
 
     .tp-tween-graphv_item:hover {
@@ -389,7 +420,7 @@ export const TweenGraphBundle : TpPluginBundle = {
         margin-top : 20px;
     }        
     .tp-tween-graphv_item.selected {
-        background: white;
+        background: rgb( 0, 150, 90 );
     }
 
     .tp-tween-graphv_control {

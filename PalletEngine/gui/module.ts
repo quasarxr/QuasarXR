@@ -305,17 +305,41 @@ export default class PalletGUI {
         } );
     }
 
-connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
+    connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
+        let enableChange = true;
         binding.on( 'change', (event) => {
-            EventEmitter.emit( emitName, event.value );
+            if ( enableChange ) {
+                EventEmitter.emit( emitName, event.value );
+            }            
         } );
 
         EventEmitter.on( listenName, ( value ) => {
+            enableChange = false;
             for( let key in param ) {
                 param[key] = value[key];
             }
             binding.refresh();
+            enableChange = true;
         } );
+    }
+
+    connectBlade( blade : BladeApi, param : PaneParamType, emitName : string, listenName : string ) {
+        // type guard
+        if ( typeof( blade as any ).on === 'function' ) {
+            (blade as any).on( 'change', ( event ) => {
+                EventEmitter.emit( emitName, event.value );
+            } );
+
+            EventEmitter.on( listenName, ( value ) => {
+                if ( 'value' in blade ) {
+                    ( blade as any )['value'] = value;
+                } else {
+
+                }
+            } );
+        } else {
+
+        }
     }
 
     deploySystem( page : TabPageApi ) {
@@ -474,14 +498,19 @@ connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, 
 
     deployTween( page : TabPageApi ) {
         const blade = page.addBlade( { view: 'tweengraph' } );
-
         _GuiDatas[ GUI_DATA_ID.TWEEN ].forEach( ( el, index, arr ) => {
             if ( el.cat === 'list' ) {
                 const b = page.addBlade( { view: el.cat, label: el.title, options: el.option, value: (el.binding as PanePrimitive).value } ) as ListBladeApi<string>;
-                b.on( 'change', ev => { console.log( ev.value ) } );
+                let enableChange = true;
+                b.on( 'change', ev => {
+                    if ( enableChange ) {
+                        EventEmitter.emit( el.emit, ev.value );
+                    }                    
+                } );
                 EventEmitter.on( el.emit + '-listen', data => {
-                    console.log( data );
+                    enableChange = false;
                     b.value = data;
+                    enableChange = true;
                 } );
                 this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
             } else if ( el.cat === 'button' ) {
@@ -497,9 +526,24 @@ connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, 
                 page.addBlade( { view:'separator' } );
             } else if  (el.cat === 'text' ) {
                 const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: (el.binding as PanePrimitive).value } ) as TextBladeApi<string>;
+                let enableChange = true;
+                b.controller.view.valueElement.addEventListener( 'input', (ev : InputEvent) => {
+                    if ( enableChange ) {
+                        const newName = ( ev.target as HTMLInputElement ).value;
+                        this.tweenGraph.updateName( newName );
+                        EventEmitter.emit( el.emit, newName );
+                    }                    
+                } );
+                b.on( 'change', event => {
+                    if ( enableChange ) {
+                        EventEmitter.emit( el.emit, event.value );
+                    }                    
+                } );
                 this.guiMap.set( el.emit, {uid: el.emit, pi: b, events: [] } );
-                EventEmitter.on( el.emit + '-listen', data => {          
+                EventEmitter.on( el.emit + '-listen', data => {
+                    enableChange = false;
                     b.value = data;
+                    enableChange = true;
                 } );
             } else if ( el.cat === 'number' ) {
                 const b = page.addBinding( el.binding as PanePrimitive, 'value' );
@@ -511,17 +555,16 @@ connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, 
         } );
         this.guiMap.set( 'tween-graph', {uid: 'tween-graph', pi: blade, events: [] } );
 
-        EventEmitter.on( 'tween-add-type', data => {
-            console.log( data );
-        } );
+        const names = [ 'tween-add-name', 'tween-add-duration', 'tween-add-type', 'tween-add-to' ];
 
-        EventEmitter.on( 'tween-add-to', data => {
-            console.log( data );
-            
-        } );
+        const _self = this.tweenGraph;
+        names.map( name => EventEmitter.on( name, data => {
+            if ( _self.cursorIndex !== undefined ) {
+                EventEmitter.emit( 'tweenModel-update-signal', undefined );
+            }
+        } ) );
 
         EventEmitter.on( 'tweenGraph-item-update', data => {
-            console.log( data.type, data.name, data.duration, data.valuesEnd );
             EventEmitter.emit( 'tween-add-type-listen', data.type );
             EventEmitter.emit( 'tween-add-name-listen', data.name );
             EventEmitter.emit( 'tween-add-duration-listen', { value : data.duration / 1000 } );
