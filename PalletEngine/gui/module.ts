@@ -226,7 +226,6 @@ export default class PalletGUI {
         inst.hidden = false;
         inst.rootElement.style.width = '300px';
         //inst.rootElement.style.height = '99vh';
-        inst.rootElement.style.overflowY = 'auto';
         inst.rootElement.style.scrollbarWidth = 'thin';
         inst.rootElement.style.scrollbarColor = '#ccc rgba(95, 95, 95, 0.4)';
         const tab = inst.addTab( {
