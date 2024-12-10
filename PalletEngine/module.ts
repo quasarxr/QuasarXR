@@ -515,7 +515,7 @@ class DesktopIRC extends InteractionController {
             }
 
             if ( eventObject.userData.tweens ) {
-                EventEmitter.emit( 'tween-prop-update', eventObject.userData.tweens );
+                EventEmitter.emit( 'tweenGraph-update', eventObject.userData.tweens );
             }            
         }
     }
@@ -1218,9 +1218,50 @@ class PalletEngine extends PalletElement {
             }
         } );
 
-        EventEmitter.on( 'tween-prop-update', data => {
-            console.log( data );
+        EventEmitter.on( 'tweenGraph-update', data => {
             this.gui.tweenGraph.update( data );
+        } );
+
+        EventEmitter.on( 'tweenGraph-update-signal', index => {
+            const controller = this.irc as DesktopIRC;
+            const tween = this.tweenMgr.tweenData.get( controller.context ).at( index );
+            EventEmitter.emit( 'tweenGraph-item-update', tween );
+        } );
+
+        EventEmitter.on( 'tweenModel-update-signal', data => {
+            const controller = this.irc as DesktopIRC;
+            const bindings = this.gui.tweenBindings;
+            const element = this.tweenMgr.getData( controller.context ).at( this.gui.tweenGraph.cursorIndex );
+            element.updateData( { object : controller.context, name : bindings.name, type : bindings.type, to : { ...bindings.to }, duration : bindings.duration } );
+            console.log( element );
+        } );
+
+        this.gui.tweenGraph.onTweenAdd( () => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context && controller.context.isObject3D ) {
+                const bindings = this.gui.tweenBindings;
+                this.tweenMgr.add( {
+                    object : controller.context,
+                    type : bindings.type,
+                    from : { x : 0, y : 0, z : 0 },
+                    to : { ...bindings.to },
+                    duration : bindings.duration,
+                    easing : TWEEN.Easing.Quadratic.Out,
+                    name : bindings.name
+                } );
+            }
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
+        } );
+        
+        this.gui.tweenGraph.onTweenRemove( () => {
+
+        } );
+
+        this.gui.tweenGraph.onTweenPreview( () => {
+            const controller = this.irc as DesktopIRC;
+            if ( controller.context ) {
+                this.tweenMgr.preview( controller.context );
+            }
         } );
 
         this.gui.tweenGraph.onUpdateModel( ( index0 , index1 ) => {
@@ -1233,20 +1274,24 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'tween-add', data => {
             const controller = this.irc as DesktopIRC;
             if ( controller.context && controller.context.isObject3D ) {
+                const bindings = this.gui.tweenBindings;
+                console.log( bindings );
                 this.tweenMgr.add( {
                     object : controller.context,
-                    type : this.gui.tweenBindings.type,
+                    type : bindings.type,
                     from : { x : 0, y : 0, z : 0 },
-                    to : { ...this.gui.tweenBindings.to },
-                    duration : this.gui.tweenBindings.duration,
-                    easing : TWEEN.Easing.Quadratic.Out
+                    to : { ...bindings.to },
+                    duration : bindings.duration,
+                    easing : TWEEN.Easing.Quadratic.Out,
+                    name : bindings.name
                 } );
+                this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
             }
-            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
         
-        EventEmitter.on( 'tween-remove', data => { 
-
+        EventEmitter.on( 'tween-remove', data => {
+            this.tweenMgr.remove( { object : controller.context, index : data }  );
+            this.gui.tweenGraph.update( this.tweenMgr.tweenData.get( controller.context ) );
         } );
 
         EventEmitter.on( 'tween-preview', data => {            

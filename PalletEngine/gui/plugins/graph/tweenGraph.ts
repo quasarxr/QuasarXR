@@ -12,17 +12,45 @@ import {
     TpPluginBundle
 } from '@tweakpane/core';
 
+import EventEmitter from '../../event';
+
+enum CB_KEY { ADD = "add", REMOVE = "remove", PREVIEW = "preview", MODELUPDATE = 'modelUpdate' };
+
 export class TweenGraphApi extends BladeApi<TweenGraphBladeController> {
 
     public clear() {
         this.controller.viewClear();
     }
-    public update( data : [ unknown ] ) {
+    public update( data : unknown[] ) {
         this.controller.viewUpdate( data );
     }
 
+    private setCallback( key, callback ) {
+        return this.controller.callbackMap.get( key ).func = callback;
+    }
+
     public onUpdateModel( callback ) {
-        this.controller.modelUpdateCallback.func = callback;
+        this.setCallback( CB_KEY.MODELUPDATE, callback );
+    }
+
+    public onTweenAdd( callback ) {
+        this.setCallback( CB_KEY.ADD, callback );
+    }
+
+    public onTweenRemove( callback ) {
+        this.setCallback( CB_KEY.REMOVE, callback );
+    }
+
+    public onTweenPreview( callback ) {
+        this.setCallback( CB_KEY.PREVIEW, callback );
+    }
+
+    public updateName( name : string ) {
+        this.controller.updateName( name );
+    }
+
+    public get cursorIndex() {
+        return this.controller.cursorIndex;
     }
 }
 
@@ -36,6 +64,9 @@ type TweenCallback = { func : ( ...args : any [] ) => void }
 
 export class TweenGraphBladeController extends BladeController<TweenGraphView> {
 
+    callbackMap : Map<string, TweenCallback>;
+    presets : string[];
+    modelAddCallback : TweenCallback;
     modelUpdateCallback : TweenCallback;
 
     constructor( config : ControllerConfig ) {
@@ -47,11 +78,15 @@ export class TweenGraphBladeController extends BladeController<TweenGraphView> {
             viewProps : config.viewProps,
         }
         super( param );
-        this.modelUpdateCallback = { func : undefined };
+
+        this.callbackMap = new Map<string, TweenCallback>();
+        Object.values( CB_KEY ).forEach( cbName => {
+            this.callbackMap.set( cbName, { func: undefined } );
+        } )
         this.assignViewEvents();
     }
 
-    public viewUpdate( data : [ unknown ] ) {
+    public viewUpdate( data : unknown[] ) {
         this.view.updateGraph( data );
     }
 
@@ -59,8 +94,16 @@ export class TweenGraphBladeController extends BladeController<TweenGraphView> {
         this.view.clearGraph();
     }
 
+    public updateName( name : string ) {
+        this.view.changeElementName( name );
+    }
+
+    public get cursorIndex() {
+        return this.view.cursorIndex;
+    }
+
     private assignViewEvents() {
-        this.view.assignEvents( this.modelUpdateCallback );
+        this.view.assignEvents( this.callbackMap );
     }
 }
 
@@ -79,17 +122,59 @@ export class TweenGraphView implements View {
     private dragStartIndex : Number;
     private dropInsertIndex : Number;
 
+    private selectedElement : HTMLElement;
+
     public readonly element : HTMLElement;
     public readonly graph : HTMLElement;
+
+    public readonly controlArea : HTMLElement;
+    public readonly controlAdd : HTMLElement;
+    public readonly controlRemove : HTMLElement;
+    public readonly controlPreview : HTMLElement;
+
     constructor( doc : Document, config : ViewConfig ) {
         this.document = doc;
         this.element = doc.createElement( 'div' );
         this.element.classList.add( className() );
         config.viewProps.bindClassModifiers( this.element );
         this.graph = doc.createElement( 'div' );
+        this.graph.setAttribute( 'tabindex', '-1' );
         this.graph.classList.add(className('g'));
         
         this.element.appendChild( this.graph );
+
+        this.controlArea = doc.createElement( 'div' );
+        this.controlArea.classList.add( className('control') );
+        this.element.appendChild( this.controlArea );
+
+        this.controlAdd = doc.createElement( 'div' );
+        this.controlAdd.classList.add( className( 'btn' ) );
+        this.controlAdd.textContent = 'Add';
+        this.controlAdd.addEventListener( 'click', event => {
+            EventEmitter.emit('tween-add', undefined );
+        } );
+        this.controlArea.appendChild( this.controlAdd );
+        
+        this.controlRemove = doc.createElement( 'btn' );
+        this.controlRemove.classList.add( className( 'btn' ) );
+        this.controlRemove.textContent = 'Remove';
+        this.controlRemove.addEventListener( 'click', event => {
+            const index = this.selectedElement?.getAttribute( 'graphIndex' );
+            EventEmitter.emit( 'tween-remove', index );
+
+        } );
+        this.controlArea.appendChild( this.controlRemove );
+
+        this.controlPreview = doc.createElement( 'btn' );
+        this.controlPreview.classList.add( className( 'btn' ) );
+        this.controlPreview.textContent = 'Preview';
+        this.controlPreview.addEventListener( 'click', event => {
+            EventEmitter.emit( 'tween-preview', undefined );
+        } );
+        this.controlArea.appendChild( this.controlPreview );
+
+        
+
         this.draggingElement = null;
         this.nextSibiling = null;
         
@@ -97,24 +182,25 @@ export class TweenGraphView implements View {
         this.dropInsertIndex = -1;
     }
 
-    updateGraph( data : [ unknown ] ) {
+    updateGraph( data : unknown[] ) {
         this.clearGraph();
         if ( data instanceof Array ) {
             data.forEach( ( item, index, arr ) => {
-                this.graph.appendChild( this.createGraphItem( item, index ) );
+                this.graph.appendChild( this.createItem( item, index ) );
             } );
         }
     }
 
-    updateModel() {
-
+    changeElementName( name : string ) {
+        if ( this.selectedElement ) this.selectedElement.textContent = name;
     }
 
-    createGraphItem( data, index ) : HTMLElement {
+    createItem( data, index ) : HTMLElement {
         const element = this.document.createElement( 'div' );
         element.draggable = true;
         element.classList.add( className('item') );
-        element.textContent = `tween-${data._id}`;
+        element.textContent = data['name'];
+        element.setAttribute( 'graphIndex', `${index}` );
 
         element.addEventListener( 'mousedown', e => {
             e.stopPropagation();
@@ -123,8 +209,16 @@ export class TweenGraphView implements View {
             }
             element.classList.add( 'dragging' );
             this.draggingElement = element;
-            this.dragStartIndex = Array.from( this.graph.children ).indexOf(element);
-            console.log( 'drag start index : ', this.dragStartIndex );
+            this.dragStartIndex = Array.from( this.graph.children ).indexOf( element );
+        } );
+
+        element.addEventListener( 'mouseup', e => {
+            e.stopPropagation();
+            this.selectedElement?.classList.remove( 'selected' );
+            this.selectedElement = element;
+            element.classList.toggle( 'selected' );
+            
+            EventEmitter.emit( 'tweenGraph-update-signal', element.getAttribute( 'graphIndex' ) );
         } );
 
         element.addEventListener( 'dragstart', event => {
@@ -138,12 +232,16 @@ export class TweenGraphView implements View {
         return element;
     }
 
-    assignEvents( modelUpdate : TweenCallback ) {
+    assignEvents( callbacks : Map<string, TweenCallback> ) {
         this.graph.addEventListener( 'click', ev => {
             ev.stopPropagation();
             if ( this.draggingElement ) {
                 this.draggingElement.classList.remove( 'dragging' );                
                 this.draggingElement = null;
+            }
+
+            if ( ev.target === this.graph ) {
+                this.deSelectItem();
             }
         } );
 
@@ -188,22 +286,65 @@ export class TweenGraphView implements View {
                 this.draggingElement = null;
                 this.nextSibiling = null;
 
-                if ( modelUpdate.func ) {
-                    modelUpdate.func( this.dragStartIndex, this.dropInsertIndex );
-                } else {
-                    console.log( 'model null' );
-                }
+                callbacks.get(CB_KEY.MODELUPDATE)?.func( this.dragStartIndex, this.dropInsertIndex );
+
             }
 
             this.dragStartIndex = -1;
             this.dropInsertIndex = -1;
         } );
+
+        this.graph.addEventListener( 'keydown', event => {
+            console.log( event );
+            switch( event.key ) {
+                case 'CtrlLeft':
+                    console.log( 'ctrl' );
+                    break;
+                case 'ShiftLeft':
+                    console.log( 'shift' );
+                    break;
+            }
+        } );
     }
 
     clearGraph() {
+        this.deSelectItem();
         while( this.graph.firstChild ) {
             this.graph.removeChild( this.graph.firstChild );
         }
+    }
+
+    toggleSelect( element : HTMLElement ) {
+        element?.classList.toggle( 'selected' );
+    }
+
+    selectItem( element : HTMLElement ) {
+        if ( element == undefined || element == null ) console.error( 'element has to passed with parameter' );
+        if ( this.selectedElement ) {
+            this.deSelectItem();
+            this.selectedElement = element;
+        }
+        if ( ! element.classList.contains( 'selected' ) ) {
+            element.classList.add( 'selected' );
+        }
+    }
+
+    deSelectItem( element : HTMLElement = undefined ) {
+        if ( element ) {
+            element.classList.remove( 'selected' );
+        } else {
+            this.selectedElement?.classList.remove( 'selected' );
+            this.selectedElement = null;
+        }
+    }
+
+    public get cursorIndex() {
+        if ( this.selectedElement ) {
+            return Number( this.selectedElement.getAttribute( 'graphIndex' ) );
+        } else {
+            return undefined;
+        }
+        
     }
 }
 
@@ -244,13 +385,15 @@ export const TweenGraphBundle : TpPluginBundle = {
     ],
     css : `.tp-tween-graphv_g {
         height: 250px;
-        border-radius: 5px;
+        border-radius: 5px 5px 0px 0px;
         border: 1px solid black;
-        background-color: rgb( 107, 107, 107 );
+        border-width: 1px 1px 0px 1px;
+        background-color: rgb( 105, 105, 105 );
         margin: 0px 3px;
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: #ccc rgba(95, 95, 95, 0.4);
+        scrollbar-color: #ccc rgba(105, 105, 105, 0.4);
+        outline: none;
     }
     .tp-tween-graphv_item {
         margin: 3px;
@@ -263,22 +406,52 @@ export const TweenGraphBundle : TpPluginBundle = {
         user-select: none;
         opacity: 1;
         transition: margin 0.25s;
+        min-height: 13px;
     }
 
     .tp-tween-graphv_item:hover {
         background: blue;
-    }
-
-    .tp-tween-graphv_item:active {
-        background: white;
-    }
-    
+    }    
     .tp-tween-graphv_item.dragging {
         background: yellow;
     }
     .tp-tween-graphv_item.nextItem {
         background: red;
         margin-top : 20px;
+    }        
+    .tp-tween-graphv_item.selected {
+        background: rgb( 0, 150, 90 );
+    }
+
+    .tp-tween-graphv_control {
+        display: flex;
+        flex-direction: row;
+        justify-content: end;
+        margin: 0px 3px;
+        background-color: rgb( 105, 105, 105 );
+        border-radius: 0px 0px 5px 5px;
+        border: 1px solid black;
+        border-width: 0px 1px 1px 1px;
+
+    }
+    .tp-tween-graphv_btn {
+        border-radius: 2px;
+        margin: 4px 4px;
+        background-color: rgb(55,55,55);
+        padding: 5px;
+        width: auto;
+        color: rgb(125,125,125);
+        font-weight: bold;
+        user-select: none;
+        cursor: pointer;
+        transition: background-color 0.1s;
+    }
+    .tp-tween-graphv_btn:hover {
+        background-color: rgb(75,75,75);
+    }
+    .tp-tween-graphv_btn:active {
+        background-color: rgb(100,100,100);
+        box-shadow: 1px 1px 1px rgb( 125, 125, 125 );
     }
     `
 };

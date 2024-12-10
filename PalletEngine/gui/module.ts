@@ -1,4 +1,4 @@
-import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams, BladeApi, ListBladeApi } from 'tweakpane';
+import { Pane, FolderApi, ButtonApi, InputBindingApi, TabPageApi, TabApi, BindingParams, BladeApi, ListBladeApi, TextBladeApi } from 'tweakpane';
 import { BindingApi } from '@tweakpane/core';
 import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
@@ -10,7 +10,7 @@ import TWEEN from 'three/examples/jsm/libs/tween.module';
 // plugin
 import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
 import { RenderViewBundle, RenderViewApi } from './plugins/renderview/plugin';
-import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tween';
+import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tweenGraph';
 
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
@@ -100,21 +100,14 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
         bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
     ], [ // floor
-    ], [ // tween        
-        bakeGUIData( 'Type', 'tween-prop-type', 'text', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'From', 'tween-prop-from', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'To', 'tween-prop-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'Property', '', 'separator' ),        
+    ], [ // tween
+        bakeGUIData( 'Name', 'tween-add-name', 'text', { value: '' } ),
         bakeGUIData( 'Type', 'tween-add-type', 'list', { value : 'position' }, [ 
-            { text: 'Position', value: 'position' }, 
+            { text: 'Position', value: 'position' },
             { text: 'Rotation', value: 'rotation' }, 
             { text: 'Scale', value: 'scale' } ] ),
         bakeGUIData( 'Duration', 'tween-add-duration', 'number', { value: 1 } ),
-        bakeGUIData( 'From', 'tween-add-from', 'p3d', { x: 0, y: 0, z: 0}, { disabled: true } ),
         bakeGUIData( 'To', 'tween-add-to', 'p3d', { x: 0, y: 0, z: 0} ),
-        bakeGUIData( 'Add', 'tween-add', 'button' ),
-        bakeGUIData( 'Remove', 'tween-remove', 'button' ),
-        bakeGUIData( 'Preview', 'tween-preview', 'button' ),
     ]
 ];
 
@@ -233,7 +226,6 @@ export default class PalletGUI {
         inst.hidden = false;
         inst.rootElement.style.width = '300px';
         //inst.rootElement.style.height = '99vh';
-        inst.rootElement.style.overflowY = 'auto';
         inst.rootElement.style.scrollbarWidth = 'thin';
         inst.rootElement.style.scrollbarColor = '#ccc rgba(95, 95, 95, 0.4)';
         const tab = inst.addTab( {
@@ -313,16 +305,40 @@ export default class PalletGUI {
     }
 
     connectBinding( binding : BindingApi, param : PaneParamType, emitName : string, listenName : string ) {
+        let enableChange = true;
         binding.on( 'change', (event) => {
-            EventEmitter.emit( emitName, event.value );
+            if ( enableChange ) {
+                EventEmitter.emit( emitName, event.value );
+            }            
         } );
 
         EventEmitter.on( listenName, ( value ) => {
+            enableChange = false;
             for( let key in param ) {
                 param[key] = value[key];
             }
             binding.refresh();
+            enableChange = true;
         } );
+    }
+
+    connectBlade( blade : BladeApi, param : PaneParamType, emitName : string, listenName : string ) {
+        // type guard
+        if ( typeof( blade as any ).on === 'function' ) {
+            (blade as any).on( 'change', ( event ) => {
+                EventEmitter.emit( emitName, event.value );
+            } );
+
+            EventEmitter.on( listenName, ( value ) => {
+                if ( 'value' in blade ) {
+                    ( blade as any )['value'] = value;
+                } else {
+
+                }
+            } );
+        } else {
+
+        }
     }
 
     deploySystem( page : TabPageApi ) {
@@ -481,13 +497,20 @@ export default class PalletGUI {
 
     deployTween( page : TabPageApi ) {
         const blade = page.addBlade( { view: 'tweengraph' } );
-
         _GuiDatas[ GUI_DATA_ID.TWEEN ].forEach( ( el, index, arr ) => {
             if ( el.cat === 'list' ) {
                 const b = page.addBlade( { view: el.cat, label: el.title, options: el.option, value: (el.binding as PanePrimitive).value } ) as ListBladeApi<string>;
-                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
-                b.on( 'change', ev => { console.log( ev.value ) } );
-                //this.connectBinding( b, target, el.emit, el.emit + 'listen' );
+                let enableChange = true;
+                b.on( 'change', ev => {
+                    if ( enableChange ) {
+                        EventEmitter.emit( el.emit, ev.value );
+                    }                    
+                } );
+                EventEmitter.on( el.emit + '-listen', data => {
+                    enableChange = false;
+                    b.value = data;
+                    enableChange = true;
+                } );
                 this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
             } else if ( el.cat === 'button' ) {
                 const btn = page.addButton( { title: el.title } );
@@ -501,27 +524,52 @@ export default class PalletGUI {
             } else if ( el.cat === 'separator' ) {
                 page.addBlade( { view:'separator' } );
             } else if  (el.cat === 'text' ) {
-                const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: 'none' } );
-                b.disabled = true;
+                const b = page.addBlade( { view : 'text', label: el.title, parse: (v) => String(v), value: (el.binding as PanePrimitive).value } ) as TextBladeApi<string>;
+                let enableChange = true;
+                b.controller.view.valueElement.addEventListener( 'input', (ev : InputEvent) => {
+                    if ( enableChange ) {
+                        const newName = ( ev.target as HTMLInputElement ).value;
+                        this.tweenGraph.updateName( newName );
+                        EventEmitter.emit( el.emit, newName );
+                    }                    
+                } );
+                b.on( 'change', event => {
+                    if ( enableChange ) {
+                        EventEmitter.emit( el.emit, event.value );
+                    }                    
+                } );
+                this.guiMap.set( el.emit, {uid: el.emit, pi: b, events: [] } );
+                EventEmitter.on( el.emit + '-listen', data => {
+                    enableChange = false;
+                    b.value = data;
+                    enableChange = true;
+                } );
             } else if ( el.cat === 'number' ) {
                 const b = page.addBinding( el.binding as PanePrimitive, 'value' );
+                b.label = el.title;                
+                const target = _GuiDatas[ GUI_DATA_ID.TWEEN ][ index ].binding;
                 this.guiMap.set( el.emit, { uid: el.emit, pi: b, events: [] } );
+                this.connectBinding( b, target, el.emit, el.emit + '-listen' );
             }
         } );
         this.guiMap.set( 'tween-graph', {uid: 'tween-graph', pi: blade, events: [] } );
 
-        EventEmitter.on( 'tween-add-type', data => {
-            console.log( data );
+        const names = [ 'tween-add-name', 'tween-add-duration', 'tween-add-type', 'tween-add-to' ];
+
+        const _self = this.tweenGraph;
+        names.map( name => EventEmitter.on( name, data => {
+            if ( _self.cursorIndex !== undefined ) {
+                EventEmitter.emit( 'tweenModel-update-signal', undefined );
+            }
+        } ) );
+
+        EventEmitter.on( 'tweenGraph-item-update', data => {
+            EventEmitter.emit( 'tween-add-type-listen', data.type );
+            EventEmitter.emit( 'tween-add-name-listen', data.name );
+            EventEmitter.emit( 'tween-add-duration-listen', { value : data.duration / 1000 } );
+            EventEmitter.emit( 'tween-add-to-listen', { x : data.valuesEnd.x, y : data.valuesEnd.y, z : data.valuesEnd.z } );
         } );
 
-        EventEmitter.on( 'tween-add-from', data => {
-            console.log( data );
-        } );
-
-        EventEmitter.on( 'tween-add-to', data => {
-            console.log( data );
-            
-        } );
     }
 
     actionFileImport( cb : Function ) {
@@ -602,8 +650,8 @@ export default class PalletGUI {
     get tweenBindings() {
         const duration = this.guiMap.get('tween-add-duration').pi.exportState().binding['value'];
         const to = this.guiMap.get('tween-add-to').pi.exportState().binding['value'];
-        const from = this.guiMap.get('tween-add-from').pi.exportState().binding['value'];
         const type = this.guiMap.get('tween-add-type').pi.exportState()['value'] as string;
-        return { duration, to, from, type };
+        const name = this.guiMap.get('tween-add-name').pi.exportState()['value'] as string;
+        return { duration, to, type, name };
     }
 }
