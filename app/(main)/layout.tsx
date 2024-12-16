@@ -6,24 +6,20 @@ import '@fortawesome/fontawesome-svg-core/styles.css';
 import Header from '../components/header/header';
 import '../global.css';
 
+import { CSSProperties } from 'react';
+
 import { AuthProvider } from './provider'; 
 config.autoAddCss = false;
 
 export const metadata: Metadata = {
   title : 'QuasarXR',
-}
-
-const htmlStyle = {
-  width: "100vw",
-  height: "100vh",
-  margin: "0px",
-  overflow: "hidden"
+  description : ''
 }
 
 export default function RootLayout( { children } : { children: React.ReactNode } ) {
     return (
       <html lang="en">
-        <body style={htmlStyle}>
+        <body>
           <AuthProvider>
             <Header/>
             <main>

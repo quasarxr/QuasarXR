@@ -1,19 +1,18 @@
 .button-link {
   display: inline-block;
-  padding: 10px 20px;
-  background-color: #0070f3;
-  color: white;
+  padding: 16px 20px;
+  background-color: transparent;
+  color: #323232;
   text-decoration: none;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  transition: background-color 0.3s ease;
-  margin-left: 20px;
-  font-size: 13px;
+  /*box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);*/
+  transition: background-color 0.3s ease-in-out, color 0.2s ease-in-out;
+  font-size: 12px;
   user-select: none;
 }
 
 .button-link:hover {
-  background-color: #005bb5;
+  color: #56a1cc;
+  /* color: #ff6600; */
 }
 
 .layout-head {
@@ -21,8 +20,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-end;
-  height: 70px;
+  align-items: center;
+  height: 50px;
   background-color: #f0f0f0;
 }
 

@@ -16,6 +16,7 @@ export default function Header() {
         } );
     }
     const { data : session } = useSession();
+    const showCommercialMenu = true;
 
     return (
         <section>
@@ -24,6 +25,12 @@ export default function Header() {
                 <LoginForm isLogin={showLogin} setIsLogin={setShowLogin}/>
                 
                 <div className={styles['content-area']}>
+                    <div className={styles['button-link']}>QuasarXR</div>
+                    <div className={styles['button-link']}>Feature</div>
+                    <div className={styles['button-link']}>Example</div>
+                    <div className={styles['button-link']}>Support</div>
+                    { showCommercialMenu && <div className={styles['button-link']}>Pricing</div> }
+                    { showCommercialMenu && <div className={styles['button-link']}>Shop</div> }
                     { session?.user?.email && <div className={styles['auth-text']}> {session.user.username} </div> }
                     { session?.user?.email && <div className={styles['button-link']} onClick={handleLogoutClick}>로그아웃</div> }
                     { ! session?.user?.email && <div className={styles['button-link']} onClick={handleSignClick}>회원가입</div> }
