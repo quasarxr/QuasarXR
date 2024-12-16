@@ -627,31 +627,35 @@ export default class PalletGUI {
     }
 
     showContext( display : boolean, left : number, top : number ) {
-        const context = this.paneMap.get('oncanvas-menu');
-        context.hidden = !display;
-        context.rootElement.style.position = 'absolute';
-        context.rootElement.style.left = `${left}px`;
-        context.rootElement.style.top = `${top}px`;
+        const context = this.paneMap?.get('oncanvas-menu');
+        if ( context ) {
+            context.hidden = !display;
+            context.rootElement.style.position = 'absolute';
+            context.rootElement.style.left = `${left}px`;
+            context.rootElement.style.top = `${top}px`;
+        }        
     }
 
     toggleProperty() {
-        const property = this.paneMap.get('property-panel');
-        property.hidden = !property.hidden;
+        const property = this.paneMap?.get('property-panel');
+        if ( property ) {
+            property.hidden = !property.hidden;
+        }
     }
 
     get cameraView() : RenderViewApi {
-        return this.guiMap.get('subview').pi as RenderViewApi;
+        return this.guiMap?.get('subview').pi as RenderViewApi;
     }
 
     get tweenGraph() : TweenGraphApi {
-        return this.guiMap.get('tween-graph').pi as TweenGraphApi;
+        return this.guiMap?.get('tween-graph').pi as TweenGraphApi;
     }
 
     get tweenBindings() {
-        const duration = this.guiMap.get('tween-add-duration').pi.exportState().binding['value'];
-        const to = this.guiMap.get('tween-add-to').pi.exportState().binding['value'];
-        const type = this.guiMap.get('tween-add-type').pi.exportState()['value'] as string;
-        const name = this.guiMap.get('tween-add-name').pi.exportState()['value'] as string;
+        const duration = this.guiMap?.get('tween-add-duration').pi.exportState().binding['value'];
+        const to = this.guiMap?.get('tween-add-to').pi.exportState().binding['value'];
+        const type = this.guiMap?.get('tween-add-type').pi.exportState()['value'] as string;
+        const name = this.guiMap?.get('tween-add-name').pi.exportState()['value'] as string;
         return { duration, to, type, name };
     }
 }

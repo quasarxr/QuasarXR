@@ -383,13 +383,13 @@ class DesktopIRC extends InteractionController {
 
     onLeftClick( pointer : THREE.Vector2, state ) {
         if ( this.controls.axis || state.drag || ! state.canvasEvent ) {            
-            _module.gui.showContext(false, 0, 0 );
+            _module.gui?.showContext(false, 0, 0 );
             return;
         }
         this.raycaster.setFromCamera( this.getViewportPos( pointer.x, pointer.y ) , _module.camera );
         const hits = this.raycaster.intersectObject( _module.sceneGraph );
         this.onIntersection( hits );
-        _module.gui.showContext(false, 0, 0 );
+        _module.gui?.showContext(false, 0, 0 );
     }
 
     onRightClick( pointer : THREE.Vector2, state ) {
@@ -398,7 +398,7 @@ class DesktopIRC extends InteractionController {
         if ( state.drag == false ) {
             this.onContext( hits, pointer );
         }
-        _module.gui.showContext( true, pointer.x, pointer.y );
+        _module.gui?.showContext( true, pointer.x, pointer.y );
     }
 
     onWheelClick( pointer : THREE.Vector2, state ) {
@@ -683,7 +683,7 @@ class PalletElement extends HTMLElement {
 }
 
 class PalletEngine extends PalletElement {
-    
+    engineMode : string;
     sceneGraph : THREE.Scene;
     camera : THREE.PerspectiveCamera;
     subCameras : THREE.Object3D[];
@@ -734,8 +734,9 @@ class PalletEngine extends PalletElement {
     // tween manager
     tweenMgr : TweenManager;
             
-    constructor( canvas : HTMLCanvasElement ) {
+    constructor( canvas : HTMLCanvasElement, mode : string ) {
         super();
+        this.engineMode = mode;
         this.sceneGraph = new THREE.Scene();
         this.cameraPivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -878,7 +879,10 @@ class PalletEngine extends PalletElement {
         this.tweenMgr = new TweenManager();
 
         this.createScene();
-        this.createGUI();
+
+        if ( this.engineMode === 'editor' ) {
+            this.createGUI();
+        }
     }
 
     createMonacoEditor() {
@@ -1490,7 +1494,10 @@ class PalletEngine extends PalletElement {
         // shadow routine end
         // main render 
         Renderer.Get().render( this.sceneGraph, this.camera );
-        this.renderCameraView();
+
+        if ( this.engineMode === 'editor' ) {
+            this.renderCameraView();
+        }
     }
 
     addUpdator( func : (dt : number) => void, bind: THREE.Object3D = undefined, enabled : boolean = true ) {
@@ -1582,14 +1589,18 @@ class PalletEngine extends PalletElement {
             this.renderPass.camera = controller.context;
             this.composer.render();
             Renderer.Get().readRenderTargetPixels( this.composer.readBuffer, 0, 0, 250, 150, _pixelBuffer );
-            const api = this.gui.cameraView;
-            api.enabled( true );
-            api.getImageBuffer().data.set( _pixelBuffer );
-            api.render();
+            const api = this.gui?.cameraView;
+            if ( api ) {
+                api.enabled( true );
+                api.getImageBuffer().data.set( _pixelBuffer );
+                api.render();    
+            }            
         } else {
-            const api = this.gui.cameraView;
-            api.clear();
-            api.enabled( false );
+            const api = this.gui?.cameraView;
+            if ( api ) {
+                api.clear();
+                api.enabled( false );
+            }            
         }
     }
 }
@@ -1597,10 +1608,28 @@ class PalletEngine extends PalletElement {
 customElements.define( 'pallet-element', PalletElement );
 customElements.define( 'pallet-engine', PalletEngine );
 
-// TODO : fix 
-let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
-export let _module : PalletEngine;
+type EngineParameters = {
+    mode? : string;
+    canvas? : HTMLCanvasElement;
+ }
+type EngineCallback = { 
+    description: PalletEngine;
+    ( arg : PalletEngine ) : undefined;
+}
 
-if ( canvasElements.length > 0 ) {
-    _module = new PalletEngine( canvasElements[ 0 ] );
+export let _module : PalletEngine;
+export function _engineFactory( params : EngineParameters, callback :  EngineCallback ) {
+    return new Promise( ( resolve, reject ) => {
+        // TODO : fix 
+        try {
+            let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
+            if ( canvasElements.length > 0 ) {
+                _module = new PalletEngine( canvasElements[ 0 ], params.mode );
+                callback( _module );
+                resolve( _module );
+            }
+        } catch ( ex ) {
+            reject( ex );
+        }
+    } );
 }

@@ -20,7 +20,9 @@ export default function Page() {
       if ( PalletPromise === null ) {
         PalletPromise = import( '../../../PalletEngine/module' );
         PalletPromise.then( pallet => {
-          const engine = pallet._module;
+          pallet._engineFactory( { mode : 'editor' }, ( engine ) => {
+            console.log( engine );
+          } );
         } );
       }
 
