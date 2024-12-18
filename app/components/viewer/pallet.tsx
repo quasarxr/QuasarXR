@@ -10,7 +10,6 @@ interface ComponentAttribute {
 export default function PalletComponent( { url, mode } : ComponentAttribute ) {
     let PalletPromise = null;
     useEffect( () => {
-        console.log( url, mode );
         if ( PalletPromise === null ) {
             PalletPromise = import ( '@/PalletEngine/module' );
             PalletPromise.then( pallet => {
