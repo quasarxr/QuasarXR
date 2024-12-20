@@ -127,6 +127,12 @@ export class Command {
     }
 }
 
+export interface ResizeProps {
+    canvas? : HTMLCanvasElement;
+    width : number;
+    height : number;
+}
+
 class InteractionController {
     parent : PalletElement;
     raycaster : THREE.Raycaster;
@@ -759,7 +765,7 @@ class PalletEngine extends PalletElement {
         
         // create renderer, IRC selectionHelper initialize Issue
         const renderer = Renderer.Create( { antialias: true, canvas: canvas, alpha: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true } as RenderOptions );
-        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.setSize( canvas.clientWidth, canvas.clientHeight );
         renderer.setClearColor( 0x3c3c3c );
         //renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1;
@@ -1602,6 +1608,19 @@ class PalletEngine extends PalletElement {
                 api.enabled( false );
             }            
         }
+    }
+
+    resizeRenderer( props : ResizeProps ) {
+        const renderer = Renderer.Get();
+        const func = ( width, height ) => {
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            renderer.setSize( width, height );
+        }
+        const { width, height } = props.canvas ? 
+            { width: props.canvas.clientWidth, height: props.canvas.clientHeight } : 
+            { width: props.width, height: props.height };
+        if ( renderer ) func( width, height );
     }
 }
 
