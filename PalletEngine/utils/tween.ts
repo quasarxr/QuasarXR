@@ -31,12 +31,32 @@ interface TweenRemoveParam {
 }
 
 let _tweenID = 0;
+const _alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'; // Base62 alphabet
+
+function toBase62(num: number): string {
+    const base = _alphabet.length;
+    let encoded = '';
+    do {
+        encoded = _alphabet[num % base] + encoded;
+        num = Math.floor(num / base);
+    } while (num > 0);
+    return encoded;
+}
+
 function generateTweenID() {
-    return _tweenID++;
+    const timestamp = Date.now();
+    const sequence = _tweenID++;
+
+    if ( _tweenID > 1_000_000) _tweenID = 0;
+
+    const encodedTimestamp = toBase62( timestamp );
+    const encodedSequence = toBase62( sequence );
+
+    return `${encodedTimestamp}-${encodedSequence}`;
 }
 
 export class TweenElement {
-    private readonly _id : number;
+    private readonly _id : string;
     private _type : string;
     private _name : string;
     private _tween : TWEEN.Tween;
@@ -126,6 +146,18 @@ export class TweenElement {
         this._enabled = value;
     }
 
+    toJSON() {
+        return {
+            id : this._id,
+            name : this._name,
+            type : this._type,
+            duration : this._tween.getDuration(),
+            object : this._tween._object,
+            valuesStart : { ...this._tween._valuesStart },
+            valuesEnd : { ...this._tween._valuesEnd }
+        };
+    }
+
     updateData( payload : TweenUpdateParam ) {
         console.log( payload );
         this._name = payload.name;
@@ -150,6 +182,8 @@ export class TweenManager {
     add( param : TweenAddParam ) {
         const tween = new TweenElement(  new TWEEN.Tween( param.object[ param.type ] ).to( param.to, param.duration * 1000 )
             .easing( TWEEN.Easing.Quadratic.Out ), param.name, param.type );
+        param.object.userData.tweenUID = generateTweenID();
+        console.log( param.object.userData, tween );
         return this.data.set( param.object, [ ...this.data.get( param.object ) || [], tween ] as TweenElement[] );
     }
 
@@ -190,10 +224,10 @@ export class TweenManager {
 
         if ( array ) {
             array.at(-1).complete( () => {
-                //this.executeRollback( context, object );
+                this.executeRollback( context, object );
             } );
             array.at(0).start();
-        }        
+        }
     }
 
     play( object : Object3D ) { // only object or all
@@ -204,20 +238,22 @@ export class TweenManager {
             // play all
         }
     }
+    
+    rollback( object : Object3D, context ) {
+        object[ context.type ].set( context.valuesStart.x, context.valuesStart.y, context.valuesStart.z );
+    }
 
     rollbackContext( object : Object3D ) {
-        const context = {
-            position : object.position.clone(),
-            rotation : object.rotation.clone(),
-            scale : object.scale.clone()
-        };
+        const context = this.data.get( object ).map( ( tween ) => {
+            return { type : tween.type, valuesStart : tween.valuesStart };
+        } );
         return context;
     }
 
     executeRollback( context, object : Object3D ) {
-        object.position.copy( context.position );
-        object.rotation.copy( context.rotation );
-        object.scale.copy( context.scale );
+        context.forEach( ( value, index ) => {
+            this.rollback( object, value );
+        } );
     }
 
     elements( object : Object3D ) {
@@ -237,5 +273,60 @@ export class TweenManager {
 
     get tweenData() {
         return this.data;
+    }
+
+    set tweenData( value ) {
+        this.data = value;
+    }
+
+    import( data ) {
+        //this.data = data;
+        const tweenJSON = data['Root'].userData?.tweens;
+
+        if ( tweenJSON ) {
+            try {
+                const json = JSON.parse( tweenJSON );
+                console.log( json );
+
+                Object.keys( json ).forEach( ( key ) => {
+                    console.log( key );
+                    if ( data['Object3D'][ key ] ) {
+                        const object = data['Object3D'][ key ];
+                        const tweens = json[ key ];
+                        tweens.forEach( ( tween ) => {
+                            this.add( {
+                                 object,
+                                 name : tween.name,
+                                 type : tween.type,
+                                 from : tween.valuesStart,
+                                 to : tween.valuesEnd,
+                                 duration : tween.duration / 1000,
+                                 easing : tween.easing,
+                            } );
+                        } );
+                    }
+                } );
+
+            } catch ( e ) {
+                console.error( e );
+            }
+        }
+
+        console.log( this );
+    }
+
+    export() {
+        const data = {};
+        this.data.forEach( ( value, key ) => {
+            const json = value.map( ( tween ) => {
+                return tween.toJSON();
+            } );
+            
+            const id = key.userData.tweenUID;
+            data[ id ] = json;            
+        } );
+        const json = JSON.stringify( data );
+        console.log( json );
+        return json;
     }
 }

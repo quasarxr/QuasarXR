@@ -354,8 +354,29 @@ export default class PalletGUI {
 
         const fileFolder = page.addFolder( { title : 'File' } );
         _GuiDatas[ GUI_DATA_ID.SYSTEM ].forEach( el => {
-            const btn = fileFolder.addButton( { title: el.title } );
-            this.connectAction( btn, el.emit );
+            if ( el.cat === 'file' ) {
+                const picker = fileFolder.addBlade( {
+                    label: el.title,
+                    view: 'pathpicker'
+                } ) as PathPickerApi;
+
+                const actionName = el.emit.replace('-', '' );
+                const func = this.searchMethod( actionName );
+
+                const emitFunction = () => {
+                    if ( func ) func( ( file ) => {
+                        console.log( file );
+                        const url = URL.createObjectURL( file );
+                        EventEmitter.emit( el.emit, url );
+                        picker.setName( file.name );
+                    } );
+                };
+
+                picker.on( emitFunction );
+            } else if ( el.cat === 'button' ) {
+                const btn = fileFolder.addButton( { title: el.title } );
+                this.connectAction( btn, el.emit );
+            }
         } );
 
         const envFolder = page.addFolder( { title : 'Environment' } );
@@ -597,7 +618,6 @@ export default class PalletGUI {
     }
 
     actionFileExport( cb : Function ) {
-        // something ...
         if ( cb ) cb();
     }
 

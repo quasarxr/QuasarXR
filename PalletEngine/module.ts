@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 import { Controller } from 'lil-gui';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { TransformControls, TransformControlsGizmo } from 'three/examples/jsm/controls/TransformControls';
@@ -75,7 +76,7 @@ enum MouseEvent { Left = 0, Wheel = 1, Right = 2 };
 enum RaycastLayer { Default = 0, NoRaycast = 1 };
  
 function findParentByType( object , type ) {
-    if (object.parent instanceof type ) {
+    if (object.parent instanceof type) {
         return object.parent; // 부모 요소가 해당 타입인 경우 반환
     } else if (object.parent !== null ) {
         return findParentByType(object.parent, type ); // 타입이 아닌 경우 부모 요소로 재귀 호출
@@ -449,7 +450,7 @@ class DesktopIRC extends InteractionController {
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             this.targetMaterial = null;
-            if ( group ) {
+            if ( group && group.name !== 'system' ) {
                 if ( group === this.context ) {             
                     // TODO select children       
                     this.controls.attach( hitMeshes[ 0 ].object );
@@ -691,6 +692,8 @@ class PalletElement extends HTMLElement {
 class PalletEngine extends PalletElement {
     engineMode : string;
     sceneGraph : THREE.Scene;
+    envGroup : THREE.Group;
+    objGroup : THREE.Group;
     camera : THREE.PerspectiveCamera;
     subCameras : THREE.Object3D[];
     cameraPivot : THREE.Object3D;
@@ -744,6 +747,13 @@ class PalletEngine extends PalletElement {
         super();
         this.engineMode = mode;
         this.sceneGraph = new THREE.Scene();
+        this.envGroup = new THREE.Group();
+        this.envGroup.name = 'system';
+        this.objGroup = new THREE.Group();
+        this.objGroup.name = 'system';
+        this.objGroup.layers.set( RaycastLayer.NoRaycast );
+        this.sceneGraph.add( this.envGroup );
+        this.sceneGraph.add( this.objGroup );
         this.cameraPivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
         this.subCameras = [];
@@ -963,14 +973,13 @@ class PalletEngine extends PalletElement {
 
         // system
         EventEmitter.on( 'file-import', ( url ) => {
-            this.gltfLoader.load( url, gltf => {
+            this.loadGLTF( url, gltf => {
                 this.sceneGraph.add( gltf.scene );
-            } );
+            });
         } );
 
-        EventEmitter.on( 'file-export', () => {
-            const file = undefined;
-            EventEmitter.emit( 'file-export-listen', file );
+        EventEmitter.on( 'file-export', () => {            
+            this.exportGLTF();
         } );
 
         EventEmitter.on( 'env-bg', data => { /* data : URL */
@@ -1061,7 +1070,7 @@ class PalletEngine extends PalletElement {
             const b = new THREE.Mesh( tmp_geometry, tmp_material );
             b.castShadow = true;
             b.receiveShadow = true;
-            this.sceneGraph.add( b );
+            this.objGroup.add( b );
         } );
 
         EventEmitter.on( 'create-sphere', () => {
@@ -1070,25 +1079,25 @@ class PalletEngine extends PalletElement {
             const s = new THREE.Mesh( tmp_geometry, tmp_material );
             s.castShadow = true;
             s.receiveShadow = true;
-            this.sceneGraph.add( s );
+            this.objGroup.add( s );
         } );
 
         EventEmitter.on( 'create-plane', () => {
             tmp_geometry = new THREE.PlaneGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.objGroup.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
         } );
 
         EventEmitter.on( 'create-cone', () => {
             tmp_geometry = new THREE.ConeGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.objGroup.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
         } );
 
         EventEmitter.on( 'create-cylinder', () => {
             tmp_geometry = new THREE.CylinderGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.objGroup.add( new THREE.Mesh( tmp_geometry, tmp_material ) );
         } );
 
         let light = undefined;
@@ -1103,14 +1112,14 @@ class PalletEngine extends PalletElement {
             mesh.position.set( 0, 2.5, 0 );
             mesh.attach( target );
             light.target = target;
-            this.sceneGraph.add( mesh );
+            this.objGroup.add( mesh );
         } );
 
         EventEmitter.on( 'create-pointlight', ( data ) => {
             light = new THREE.PointLight( 0xff0000, 100 );
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             mesh.add( light );            
-            this.sceneGraph.add( mesh );            
+            this.sceneGraph.add( mesh );
         } );
 
         EventEmitter.on( 'create-spotlight', () => {
@@ -1122,7 +1131,7 @@ class PalletEngine extends PalletElement {
             light.target = target;
             mesh.attach( target );
             light.castShadow = true;
-            this.sceneGraph.add( mesh );
+            this.objGroup.add( mesh );
             const helper = new THREE.SpotLightHelper( light );
             mesh.attach( helper );
             this.addUpdator( () => {
@@ -1137,7 +1146,7 @@ class PalletEngine extends PalletElement {
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             mesh.position.set( 0, 5, 0 );
             mesh.add( light );
-            this.sceneGraph.add( mesh );
+            this.objGroup.add( mesh );
         } );
 
         EventEmitter.on( 'create-camera', () => {
@@ -1161,8 +1170,8 @@ class PalletEngine extends PalletElement {
             } );
 
             this.subCameras.push( helper );
-            this.sceneGraph.add( camera );
-            this.sceneGraph.add( helper );
+            this.objGroup.add( camera );
+            this.objGroup.add( helper );
         } );
 
         
@@ -1337,7 +1346,7 @@ class PalletEngine extends PalletElement {
         this.sceneGraph.userData.gridPlane = gridPlane;
         this.sceneGraph.userData.gridHelper = gridHelper;
 
-        this.directionalLight = new THREE.DirectionalLight( 0x94f8ff, 4 );
+        this.directionalLight = new THREE.DirectionalLight( 0xffffff, 5 );
 
         this.directionalLight.castShadow = true;
         this.directionalLight.shadow.camera.right = 25;
@@ -1351,8 +1360,8 @@ class PalletEngine extends PalletElement {
         this.directionalLight.position.set( 0, 5, 0 );
 
         this.sceneGraph.add( this.directionalLight );
-        this.ambientLight = new THREE.AmbientLight( 0x6ebad4 );
-        this.ambientLight.intensity = 15;
+        this.ambientLight = new THREE.AmbientLight( 0xffffff );
+        this.ambientLight.intensity = 1;
         this.sceneGraph.add( this.ambientLight );
 
         this.sceneGraph.add( this.helperGroup );
@@ -1427,7 +1436,27 @@ class PalletEngine extends PalletElement {
     }
 
     loadGLTF( url : string, onload : Function ) {
+        const findTweenNodes = ( node : THREE.Group | THREE.Object3D | THREE.Scene ) : {} => {
+            let tweenNodes = { 'Root' : null, 'Object3D' : {} };
+            node.traverse( ( object ) => {
+                if ( object.name === 'tweenData' ) {
+                    tweenNodes.Root = object;
+                }
+                if ( object.userData?.tweenUID ) {
+                    tweenNodes.Object3D[ object.userData.tweenUID ] = object;
+                }
+            } );
+            return tweenNodes;
+        };
+
         this.gltfLoader.load( url , gltf => {
+            console.log( gltf );
+
+            const tweenData = findTweenNodes( gltf.scene );
+            if ( tweenData[ 'Root' ] ) {
+                this.tweenMgr.import( tweenData );
+            }            
+
             onload( gltf );
             this.sceneGraph.add( gltf.scene );
         }, /* onProgress, onError */ );
@@ -1443,6 +1472,23 @@ class PalletEngine extends PalletElement {
     loadAudio( url: string, onload : Function ) {
         const audioLoader = new THREE.AudioLoader();
         audioLoader.load( url, onload );
+    }
+
+    exportGLTF( object : THREE.Object3D = this.objGroup ) {
+        const tempObject3D = new THREE.Object3D();
+        tempObject3D.name = 'exportRoot';
+        tempObject3D.add( object );
+        const tweenObject = new THREE.Object3D();
+        tweenObject.name = 'tweenData';
+        tweenObject.userData.tweens = this.tweenMgr.export();
+        tempObject3D.add( tweenObject );
+        console.log( 'expoting...', object );
+        const exporter = new GLTFExporter();
+        exporter.parse( tempObject3D,  gltf => {
+            FileUtil.DownloadFile( 'scene.glb', gltf );
+            //recovery to the scene
+            this.sceneGraph.add( object );
+        }, { binary : true, includeCustomExtensions : true } );
     }
 
     update( dt : number ) {
