@@ -93,12 +93,12 @@ const _GuiDatas : GUIData[][]= [
         bakeGUIData( 'Exposure', 'env-exposure', 'slider', { value : 1 }, { min: 0, max: 2 } ),
         bakeGUIData( 'Ground', 'env-ground', 'checkbox', { value : true } ),
     ], [ // dir light
-        bakeGUIData( 'Intensity', 'env-dirlight-intensity', 'slider', { value : 4 }, { min : 0, max : 1000 } ),
-        bakeGUIData( 'Color', 'env-dirlight-color', 'color', { value : 0x94f8ff }, { view: 'color' } ),
+        bakeGUIData( 'Intensity', 'env-dirlight-intensity', 'slider', { value : 5 }, { min : 0, max : 20 } ),
+        bakeGUIData( 'Color', 'env-dirlight-color', 'color', { value : 0xffffff }, { view: 'color' } ),
         bakeGUIData( 'Direction', 'env-dirlight-edit', 'button' ),
     ], [ // ambient light
-        bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 15 }, { min : 0, max : 1000 } ),
-        bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0x6ebad4 }, { view: 'color' } ),
+        bakeGUIData( 'Intensity', 'env-ambient-intensity', 'slider', { value : 1 }, { min : 0, max : 10 } ),
+        bakeGUIData( 'Color', 'env-ambient-color', 'color', { value : 0xffffff }, { view: 'color' } ),
     ], [ // floor
     ], [ // tween
         bakeGUIData( 'Name', 'tween-add-name', 'text', { value: '' } ),
