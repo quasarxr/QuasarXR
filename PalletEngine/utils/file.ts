@@ -1,3 +1,5 @@
+import axios from 'axios'; // HTTP 요청을 보내는 라이브러리
+
 export default class FileUtil {
     static FileSelector( multiple : boolean = false, accept : string = "" ) {
         const f = document.createElement( 'input' );
@@ -22,6 +24,19 @@ export default class FileUtil {
         } catch( error ) {
             console.error( error );
         }
+    }
+
+    static UploadFile( url : string, file : any, callback : ( response : any ) => void ) {
+        fetch( url, {
+            method: 'POST',
+            body: JSON.stringify( { fileName : 'scene.glb', fileData: file } ),
+        } ).then( response => {
+            return response.json();
+        } ).then( data => {
+            callback( data );
+        } ).catch( error => {
+            console.error( error );
+        } );
     }
     
     static FileExtension( path ) {

@@ -979,7 +979,17 @@ class PalletEngine extends PalletElement {
         } );
 
         EventEmitter.on( 'file-export', () => {            
-            this.exportGLTF();
+            this.exportGLTF().then( gltf => {
+                FileUtil.DownloadFile( 'scene.glb', gltf );
+            } );
+        } );
+        
+        EventEmitter.on( 'system-storage', () => {
+            this.exportGLTF().then( gltf => {
+                FileUtil.UploadFile( 'api/upload', gltf, () => {
+                    console.log( 'upload complete' );
+                } );
+            } );
         } );
 
         EventEmitter.on( 'env-bg', data => { /* data : URL */
@@ -1483,12 +1493,17 @@ class PalletEngine extends PalletElement {
         tweenObject.userData.tweens = this.tweenMgr.export();
         tempObject3D.add( tweenObject );
         console.log( 'expoting...', object );
-        const exporter = new GLTFExporter();
-        exporter.parse( tempObject3D,  gltf => {
-            FileUtil.DownloadFile( 'scene.glb', gltf );
-            //recovery to the scene
-            this.sceneGraph.add( object );
-        }, { binary : true, includeCustomExtensions : true } );
+        
+        const promise = new Promise( ( resolve, reject ) => {                
+            const exporter = new GLTFExporter();
+            exporter.parse( tempObject3D,  gltf => {
+                resolve( gltf );
+                //recovery to the scene
+                this.sceneGraph.add( object );
+            }, { binary : true, includeCustomExtensions : true } );
+        } );
+
+        return promise;
     }
 
     update( dt : number ) {

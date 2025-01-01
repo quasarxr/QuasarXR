@@ -58,7 +58,7 @@ const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ),
         bakeGUIData( 'Export', 'file-export', 'button' ),
-        //bakeGUIData( 'Publish', 'sys-publish', 'button' ),
+        bakeGUIData( 'Storage', 'system-storage', 'button' ),
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
         bakeGUIData( 'Sphere', 'create-sphere', 'button' ),
@@ -617,7 +617,11 @@ export default class PalletGUI {
         fileSelector( cb );
     }
 
-    actionFileExport( cb : Function ) {
+    actionExport( cb : Function ) {
+        if ( cb ) cb();
+    }
+
+    actionSystemStorage( cb : Function ) {
         if ( cb ) cb();
     }
 
