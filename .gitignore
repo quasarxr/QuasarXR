@@ -3,3 +3,4 @@ legacy/
 .next/
 .env.local
 .env
+storage/
