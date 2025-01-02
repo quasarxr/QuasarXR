@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import '@/styles/global.css'
+import { useSession } from 'next-auth/react';
 import styles from './styles.module.css';
 
 let PalletPromise = null;
@@ -15,6 +16,8 @@ export default function Page() {
     function back() {
       window.history.back();
     }
+    
+    const { data : session } = useSession();
 
     useEffect( () => {
       if ( PalletPromise === null ) {
@@ -25,8 +28,9 @@ export default function Page() {
           } );
         } );
       }
-
-    } /*, [] */ );
+     
+      console.log( session );
+    } , [ session ] );
 
     const styleText = {
       width: "100%",

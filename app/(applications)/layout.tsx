@@ -7,10 +7,8 @@ export default function ApplicationLayout( { children } : { children : React.Rea
         overflow: "hidden"
     };
     return (
-        <html lang="en">
-            <body style={htmlStyle}>
-            <main>{children}</main>
-            </body>
-        </html>
+        <div>
+            {children}
+        </div>
     )
 }
