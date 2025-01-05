@@ -50,7 +50,7 @@ export async function login( state: LoginFormState, formData : FormData ) {
       newState.errors = JSON.parse( result.error );
       return newState;
     }
-    newState.redirect = '/';
+    newState.redirect = state.redirect ? state.redirect : '/';
   } catch (error) {
     newState.errors = { message : [ 'Login failed, fetch api failed' ] };
   }

@@ -11,7 +11,8 @@ import { useRouter } from 'next/navigation';
 
 interface Props {
     isLogin : boolean,
-    setIsLogin : Function
+    setIsLogin : Function,
+    redirect? : string | undefined,
 }
 
 const normalBorder = '1px solid #319cd0';
@@ -19,13 +20,13 @@ const errorBorder = '1px solid #ff3131';
 const normalBg = '#efefef';
 const errorBg = 'rgba(255, 150, 150, 0.25)';
 
-const LoginForm = ({ isLogin, setIsLogin } : Props) => {
+const LoginForm = ({ isLogin, setIsLogin, redirect } : Props) => {
     const [ passwordVisible, setPasswordVisible ] = useState(false);
     const [ emailBorder, setEmailBorder ] = useState(normalBorder);    
     const [ passwordBorder, setPasswordBorder ] = useState(normalBorder);
     const [ emailBg, setEmailBg ] = useState(normalBg);
     const [ pwBg, setpwBg ] = useState(normalBg);
-    const initialValue : LoginFormState = { errors: {} }
+    const initialValue : LoginFormState = { errors: {}, redirect: redirect };
     const [ state, formAction, isPending ] = useFormState(login, initialValue);
     const router = useRouter();
 

@@ -11,6 +11,7 @@ import TWEEN from 'three/examples/jsm/libs/tween.module';
 import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
 import { RenderViewBundle, RenderViewApi } from './plugins/renderview/plugin';
 import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tweenGraph';
+import { AuthenticatorBundle ,AuthenticatorApi } from './plugins/auth/authenticator';
 
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
@@ -175,6 +176,7 @@ export default class PalletGUI {
         this.paneMap.get( id ).registerPlugin( PathPickerBundle );
         this.paneMap.get( id ).registerPlugin( RenderViewBundle );
         this.paneMap.get( id ).registerPlugin( TweenGraphBundle );
+        this.paneMap.get( id ).registerPlugin( AuthenticatorBundle );
         //console.log( id );
         return this.paneMap.get( id );
     }
@@ -342,6 +344,9 @@ export default class PalletGUI {
     }
 
     deploySystem( page : TabPageApi ) {
+
+        const authApi = page.addBlade( { view: 'authenticator' } ) as AuthenticatorApi;
+        this.guiMap.set( 'authenticator', { uid: 'authenticator', pi: authApi, events: [] } );
         
         const playBtn = page.addButton( { title: 'Play' } );
         this.connectAction( playBtn, 'editor-play', false );
@@ -667,6 +672,10 @@ export default class PalletGUI {
         }
     }
 
+    updateSession( session ) {
+        this.authenticator.updateSession( session );
+    }
+
     get cameraView() : RenderViewApi {
         return this.guiMap?.get('subview').pi as RenderViewApi;
     }
@@ -681,5 +690,9 @@ export default class PalletGUI {
         const type = this.guiMap?.get('tween-add-type').pi.exportState()['value'] as string;
         const name = this.guiMap?.get('tween-add-name').pi.exportState()['value'] as string;
         return { duration, to, type, name };
+    }
+
+    get authenticator() : AuthenticatorApi {
+        return this.guiMap?.get('authenticator').pi as AuthenticatorApi;
     }
 }

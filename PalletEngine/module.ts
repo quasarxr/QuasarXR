@@ -49,6 +49,7 @@ import FileUtil from './utils/file';
 //import MathUtil from './utils/math';
 import TextureUtil from './utils/texture';
 import { TweenManager } from './utils/tween';
+import { AuthController } from './utils/auth';
 
 // tween
 import TWEEN from 'three/examples/jsm/libs/tween.module';
@@ -742,6 +743,9 @@ class PalletEngine extends PalletElement {
 
     // tween manager
     tweenMgr : TweenManager;
+
+    // auth controller
+    authController : AuthController;
             
     constructor( canvas : HTMLCanvasElement, mode : string ) {
         super();
@@ -1683,6 +1687,11 @@ class PalletEngine extends PalletElement {
             { width: props.width, height: props.height };
         if ( renderer ) func( width, height );
     }
+
+    updateSession( session ) {
+        console.log ( this.gui, session );
+        this.gui?.updateSession( session );
+    }
 }
 
 customElements.define( 'pallet-element', PalletElement );
@@ -1691,6 +1700,7 @@ customElements.define( 'pallet-engine', PalletEngine );
 type EngineParameters = {
     mode? : string;
     canvas? : HTMLCanvasElement;
+    session? : any;
  }
 type EngineCallback = { 
     description: PalletEngine;
@@ -1711,5 +1721,16 @@ export function _engineFactory( params : EngineParameters, callback :  EngineCal
         } catch ( ex ) {
             reject( ex );
         }
+    } );
+}
+
+export function _createAuthController( session, login, logout ) {
+    _module.authController = new AuthController( { session : null, logics: { login : login , logout : logout } } );
+    EventEmitter.on( 'auth-login', () => {
+        login();
+    } );
+
+    EventEmitter.on( 'auth-logout', () => {
+        logout();
     } );
 }
