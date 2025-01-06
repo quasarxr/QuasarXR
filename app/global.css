@@ -11,6 +11,10 @@ body {
     scrollbar-color: #6c63ff #f4f4f4; */
 }
 
+body.no-scroll {
+    overflow-y : hidden;
+}
+
 /* body::-webkit-scrollbar {
     width: 10px;
     height: 10px;
