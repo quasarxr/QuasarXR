@@ -1699,8 +1699,8 @@ function _createRenderer( canvas ) {
     renderer.physicallyCorrectLights = true;
     renderer.xr.enabled = true;
     renderer.setAnimationLoop( () => {
-        const dt = this.clock.getDelta();
-        this.update( dt );
+        const dt = _module.clock.getDelta();
+        _module.update( dt );
     } );
 
     window.addEventListener('resize', (event) => {

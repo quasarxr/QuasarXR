@@ -1,7 +1,7 @@
 'use client'
 
-import LoadingComponent from '../loading/loadingComponent';
-import { CSSProperties, useEffect, forwardRef, useRef, useImperativeHandle, useState, memo } from 'react';
+import LoadingComponent from '../loading';
+import { CSSProperties, useEffect, forwardRef, useRef, useImperativeHandle, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { logout } from '@/app/actions/auth';
