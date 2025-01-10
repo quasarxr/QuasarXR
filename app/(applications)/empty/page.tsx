@@ -1,7 +1,7 @@
 'use client'
 
 import '@/styles/global.css';
-import PalletComponent from '@/app/components/engine/palletComponent';
+import PalletComponent from '@/app/components/engine';
 
 export default function Page() {
 
@@ -14,7 +14,7 @@ export default function Page() {
   return (
   <div style={styleText}>    
     <div>
-      <PalletComponent url={""} mode={"editor"} size={{ width : "100vw", height: "100vh" }} scroll={false}></PalletComponent>
+      <PalletComponent url={""} mode={"editor"} size={{ width : "100vw", height: "100vh" }} scroll={false}/>
     </div>
   </div> );
 }

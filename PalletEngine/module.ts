@@ -678,6 +678,10 @@ export class Renderer {
         return Renderer.renderer;
     }
 
+    static Release() {
+        Renderer.renderer.dispose();
+    }
+
     static AnimationLoop( func : Function ) {
         
     }
@@ -1722,6 +1726,10 @@ export function _engineFactory( params : EngineParameters, callback :  EngineCal
             reject( ex );
         }
     } );
+}
+
+export function _dispose() {
+    Renderer.Get().dispose();
 }
 
 export function _createAuthController( session, login, logout ) {

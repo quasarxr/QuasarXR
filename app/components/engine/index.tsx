@@ -1,12 +1,11 @@
 'use client'
 
 import LoadingComponent from '../loading/loadingComponent';
-import { CSSProperties, useEffect, forwardRef, useRef, useImperativeHandle, useState } from 'react';
+import { CSSProperties, useEffect, forwardRef, useRef, useImperativeHandle, useState, memo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { logout } from '@/app/actions/auth';
 import LoginForm from '@/app/components/login/login';
-import style from './style.module.css';
 
 export interface PalletComponentRef {
     /** */
@@ -21,23 +20,27 @@ export interface PalletComponentRef {
 //     window.history.back();
 // }
 
+let _PalletPromise = null;
+let _EngineInstance = null;
+let _Module = null; //TODO : remove this variable
+
 interface Props {
     mode? : string;
     url? : string;
-    onload? : (() => void) | [() => void];
-    size? : { width: string, height: string }
+    onload? : ( data : any ) => void;
+    preload? : ( engine : any ) => void;
+    size? : { width: string, height: string };
     scroll? : boolean;
 }
 
 const _scrollKeyword = 'no-scroll';
 
-const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, onload, size, scroll = true } : Props, ref ) => {
-    let PalletPromise = null;
-    let engineInstance = useRef( null );
+const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, onload, preload, size, scroll = true } : Props, ref ) => {
     useImperativeHandle( ref, () => ({
     }));
     
     const currentPath = usePathname();
+    const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const loadingRef = useRef(null);
     const sessionRef = useRef(null);
@@ -52,22 +55,29 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
     const logoutCallback = () => logout().then( () => {} );
 
     const updateEngineSession = ( session, callback ) => {
-        if ( engineInstance.current !== null ) {
+        if ( _EngineInstance !== null ) {
             callback();
             console.log( session );
-            engineInstance.current.updateSession( session );
+            _EngineInstance.updateSession( session );
         }
     }
 
     useEffect( () => {
 
-        if ( PalletPromise === null ) {
-            PalletPromise = import ( '@/PalletEngine/module' );
-            PalletPromise.then( pallet => {
+        if ( _PalletPromise === null ) {
+            console.log( 'Create Renderer' );
+            _PalletPromise = import ( '@/PalletEngine/module' );
+            _PalletPromise.then( pallet => {
+                _Module = pallet;
+                console.log( _PalletPromise, _Module );
                 pallet._engineFactory( { mode : mode }, ( engine ) => {
-                    engineInstance.current = engine;
+                    _EngineInstance = engine;
+
+                    if ( preload ) preload( engine );
+
                     if ( url ) {
                         engine.loadGLTF( url, gltf => {
+                            if ( onload ) onload( gltf );
                             engine.sceneGraph.add( gltf.scene );
                         } );
                     }
@@ -82,15 +92,24 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
                     
                     pallet._createAuthController( null, loginCallback, logoutCallback );
                 } );
+            } ).finally( () => {
+                console.log( 'promise null' );
+                _PalletPromise = null;
             } );
         }
 
         if ( !scroll ) {
             document.body.classList.add( _scrollKeyword );
-            return () => document.body.classList.remove( _scrollKeyword );
         }
 
-    } );
+        return () => {
+            console.log( 'return module : ', _Module );
+            document.body.classList.remove( _scrollKeyword );
+            _Module._dispose();
+        }
+
+
+    }, [] );
 
     useEffect( () => {
         sessionRef.current = session;
@@ -98,8 +117,8 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
     }, [ session ] );
 
     return (
-        <div id='canvas-container' style={style}>
-            <LoginForm isLogin={showLogin} setIsLogin={setShowLogin} redirect={currentPath}></LoginForm>
+        <div id='canvas-container' ref={containerRef} style={style}>
+            { mode === 'editor' && <LoginForm isLogin={showLogin} setIsLogin={setShowLogin} redirect={currentPath}></LoginForm> }
             <LoadingComponent ref={loadingRef} style={{zIndex: 2}}/>
             <canvas className="view" ref={canvasRef} style={{width: "100%", height: "100%" } }></canvas>
         </div>

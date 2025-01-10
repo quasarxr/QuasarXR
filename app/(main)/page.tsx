@@ -1,7 +1,7 @@
 import styles from './styles.module.css';
 import Link from 'next/link';
 import BmcaWidget from '../components/bmac/coffee';
-import PalletComponent from '../components/engine/palletComponent';
+import PalletComponent from '../components/engine';
 import GridView from '../components/onpage/grid/gridView';
 
 export default function Page() {
