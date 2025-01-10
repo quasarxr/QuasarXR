@@ -781,27 +781,6 @@ class PalletEngine extends PalletElement {
         this.updateFunctions = new Array<Updator>(); // 
         this.commandQueue = new CommandQueue(); // for customize events
         
-        // create renderer, IRC selectionHelper initialize Issue
-        const renderer = Renderer.Create( { antialias: true, canvas: canvas, alpha: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true } as RenderOptions );
-        renderer.setSize( canvas.clientWidth, canvas.clientHeight );
-        renderer.setClearColor( 0x3c3c3c );
-        //renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.physicallyCorrectLights = true;
-        renderer.xr.enabled = true;
-        renderer.setAnimationLoop( () => {
-            const dt = this.clock.getDelta();
-            this.update( dt );
-        } );
-
-        window.addEventListener('resize', (event) => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            renderer.setSize( window.innerWidth, window.innerHeight );
-        } );
-
         // interaction setting
         this.irc = new DesktopIRC();
         this.irc.parent = this;
@@ -1696,10 +1675,40 @@ class PalletEngine extends PalletElement {
         console.log ( this.gui, session );
         this.gui?.updateSession( session );
     }
+
+    dispose() {
+        if ( this.gui ) {
+            this.gui.dispose();
+            this.gui = undefined;
+        }
+    }
 }
 
 customElements.define( 'pallet-element', PalletElement );
 customElements.define( 'pallet-engine', PalletEngine );
+
+function _createRenderer( canvas ) {    
+    // create renderer, IRC selectionHelper initialize Issue
+    const renderer = Renderer.Create( { antialias: true, canvas: canvas, alpha: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true } as RenderOptions );
+    renderer.setSize( canvas.clientWidth, canvas.clientHeight );
+    renderer.setClearColor( 0x3c3c3c );
+    //renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.physicallyCorrectLights = true;
+    renderer.xr.enabled = true;
+    renderer.setAnimationLoop( () => {
+        const dt = this.clock.getDelta();
+        this.update( dt );
+    } );
+
+    window.addEventListener('resize', (event) => {
+        _module.camera.aspect = window.innerWidth / window.innerHeight;
+        _module.camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    } );
+}
 
 type EngineParameters = {
     mode? : string;
@@ -1711,13 +1720,15 @@ type EngineCallback = {
     ( arg : PalletEngine ) : undefined;
 }
 
-export let _module : PalletEngine;
+export let _module : PalletEngine = null;
 export function _engineFactory( params : EngineParameters, callback :  EngineCallback ) {
     return new Promise( ( resolve, reject ) => {
         // TODO : fix 
         try {
-            let canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
-            if ( canvasElements.length > 0 ) {
+            const canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
+            
+            if ( canvasElements.length ) {
+                _createRenderer( canvasElements[ 0 ] );
                 _module = new PalletEngine( canvasElements[ 0 ], params.mode );
                 callback( _module );
                 resolve( _module );
@@ -1729,6 +1740,7 @@ export function _engineFactory( params : EngineParameters, callback :  EngineCal
 }
 
 export function _dispose() {
+    _module.dispose();
     Renderer.Get().dispose();
 }
 

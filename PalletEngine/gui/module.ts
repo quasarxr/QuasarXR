@@ -195,6 +195,8 @@ export default class PalletGUI {
         this.paneMap.forEach( ( value : Pane, key : string ) => {
             value.dispose();
         } );
+
+        this.paneMap = null;
     }
 
     getPane( id : string ) {
