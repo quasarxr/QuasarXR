@@ -1,7 +1,7 @@
 'use client'
 import styles from './styles.module.css';
-import SignupForm from '../signup/signup';
-import LoginForm from '../login/login';
+import SignupForm from '../signup';
+import LoginForm from '../login';
 import { logout } from '@/app/actions/auth'; 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';

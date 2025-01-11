@@ -5,7 +5,7 @@ import { CSSProperties, useEffect, forwardRef, useRef, useImperativeHandle, useS
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { logout } from '@/app/actions/auth';
-import LoginForm from '@/app/components/login/login';
+import LoginForm from '@/app/components/login';
 
 export interface PalletComponentRef {
     /** */
