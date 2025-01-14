@@ -674,6 +674,10 @@ export default class PalletGUI {
         }
     }
 
+    getSession() {
+        return this.authenticator.getSession();
+    }
+
     updateSession( session ) {
         this.authenticator.updateSession( session );
     }

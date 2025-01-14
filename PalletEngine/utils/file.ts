@@ -1,5 +1,11 @@
 import axios from 'axios'; // HTTP 요청을 보내는 라이브러리
 
+interface UploadParam {
+    url? : string,
+    session : any,
+    file : any,
+}
+
 export default class FileUtil {
     static FileSelector( multiple : boolean = false, accept : string = "" ) {
         const f = document.createElement( 'input' );
@@ -26,10 +32,10 @@ export default class FileUtil {
         }
     }
 
-    static UploadFile( url : string, file : any, callback : ( response : any ) => void ) {
-        fetch( url, {
+    static UploadFile( data : UploadParam, callback : ( response : any ) => void ) {
+        fetch( 'api/upload', {
             method: 'POST',
-            body: JSON.stringify( { fileName : 'scene.glb', fileData: file } ),
+            body: JSON.stringify( { fileName : 'scene.glb', fileData: data.file, userName : data.session.user.email, userId : data.session.user.user_id } ),
         } ).then( response => {
             return response.json();
         } ).then( data => {

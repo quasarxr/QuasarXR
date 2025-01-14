@@ -12,7 +12,7 @@ export async function GET() {
 }
   
 // POST 요청 처리
-export async function POST(req: NextRequest) {
+export async function POST( req: NextRequest ) {
     const { username, email, password } = await req.json();
     return NextResponse.json( { message: 'Signup success', result : ( bcrypt.hash( password, saltRounds ).then( async function( hash ) {
         try {

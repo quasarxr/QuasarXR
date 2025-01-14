@@ -30,8 +30,8 @@ export class AuthenticatorBladeController extends BladeController<AuthenticatorV
         } );
     }
 
-    public getSessions() {
-        return [];
+    public getSession() {
+        return this.view.getSession();
     }
 
     public setSession( session ) {
@@ -90,14 +90,16 @@ export class AuthenticatorView implements View {
         root.appendChild( this.logout );
     }
 
+    public getSession() {
+        return this.session;
+    }
+
     public setSession( session ) {
-        console.log( session );
         this.session = session;
         this.updateSession();
     }
 
     private updateSession() {
-        console.log( 'updateSession', this.session );
         this.nameTag.textContent = this.session ? this.session.user.username : 'anonymous';
         //this.thumbnail.innerHTML = this.session ? this.session.user.img : '';
         this.login.style.display = this.session ? 'none' : '';
@@ -107,8 +109,8 @@ export class AuthenticatorView implements View {
 
 export class AuthenticatorApi extends BladeApi<AuthenticatorBladeController> {
 
-    public getSessions() {
-        return this.controller.getSessions();
+    public getSession() {
+        return this.controller.getSession();
     }
 
     public setSession( session ) {

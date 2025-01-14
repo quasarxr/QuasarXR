@@ -973,7 +973,13 @@ class PalletEngine extends PalletElement {
         
         EventEmitter.on( 'system-storage', () => {
             this.exportGLTF().then( gltf => {
-                FileUtil.UploadFile( 'api/upload', gltf, () => {
+                console.log( this.getSession() );
+                const data = {
+                    url : 'api/upload',
+                    session : this.getSession(),
+                    file : gltf,
+                }
+                FileUtil.UploadFile( data, () => {
                     console.log( 'upload complete' );
                 } );
             } );
@@ -1672,8 +1678,11 @@ class PalletEngine extends PalletElement {
     }
 
     updateSession( session ) {
-        console.log ( this.gui, session );
         this.gui?.updateSession( session );
+    }
+
+    getSession() {
+        return this.gui?.getSession();
     }
 
     dispose() {
@@ -1745,7 +1754,7 @@ export function _dispose() {
 }
 
 export function _createAuthController( session, login, logout ) {
-    _module.authController = new AuthController( { session : null, logics: { login : login , logout : logout } } );
+    _module.authController = new AuthController( { session : session, logics: { login : login , logout : logout } } );
     EventEmitter.on( 'auth-login', () => {
         login();
     } );

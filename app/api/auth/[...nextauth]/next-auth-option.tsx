@@ -4,6 +4,10 @@ import GoogleProvider from "next-auth/providers/google";
 import pool from '@/app/lib/db';
 import bcrypt from 'bcrypt';
 
+async function searchUser( condition ) {
+
+}
+
 export const authOptions : NextAuthOptions = {
     providers: [
       CredentialsProvider({
@@ -45,25 +49,30 @@ export const authOptions : NextAuthOptions = {
       signIn: '/',
     },
     callbacks: {
-      async session( { session, user, token } ) {
-        if ( user?.username ) {
-          token.username = user.username;
+      async jwt( { token, user } ) {
+        function copyVar( from, to, varName ) {
+          if ( from?.[varName] !== null && from?.[varName] !== undefined ) {
+            to[varName] = from[varName];
+          }
         }
-        if ( user?.role ) {
-          token.role = user.role;
-        }
+        copyVar( user, token, 'username' );
+        copyVar( user, token, 'user_id' );        
+        copyVar( user, token, 'is_admin' );        
+        copyVar( user, token, 'is_active' );
 
+        token.role = 1;        
+        
+        return token;
+      },
+      async session( { session, user, token } ) {
         session.user.username = token.username;
         session.user.role = token.role;
+        session.user.user_id = token.user_id;
+        session.user.is_active = token.is_active;
+        session.user.is_admin = token.is_admin;
+        
         return session;
       },
-      async jwt( { token, user } ) {
-        if ( user?.username ) {
-          token.username = user.username;
-        }
-        token.role = 1;
-        return token;
-      }
     },
 };
   

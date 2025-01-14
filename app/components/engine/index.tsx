@@ -57,7 +57,6 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
     const updateEngineSession = ( session, callback ) => {
         if ( _EngineInstance !== null ) {
             callback();
-            console.log( session );
             _EngineInstance.updateSession( session );
         }
     }
@@ -69,7 +68,6 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
             _PalletPromise = import ( '@/PalletEngine/module' );
             _PalletPromise.then( pallet => {
                 _Module = pallet;
-                console.log( _PalletPromise, _Module );
                 pallet._engineFactory( { mode : mode }, ( engine ) => {
                     _EngineInstance = engine;
 
@@ -90,10 +88,9 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
                         updateEngineSession( sessionRef.current, () => {} );
                     }
                     
-                    pallet._createAuthController( null, loginCallback, logoutCallback );
+                    pallet._createAuthController( sessionRef.current, loginCallback, logoutCallback );
                 } );
             } ).finally( () => {
-                console.log( 'promise null' );
                 _PalletPromise = null;
             } );
         }
@@ -103,9 +100,10 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
         }
 
         return () => {
-            console.log( 'return module : ', _Module );
             document.body.classList.remove( _scrollKeyword );
-            _Module._dispose();
+            if ( _Module ) {
+                _Module._dispose();
+            }           
         }
 
 
