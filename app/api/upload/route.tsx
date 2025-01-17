@@ -14,13 +14,13 @@ export function GET() {
     return NextResponse.json({ message: 'Upload API' });
 }
 
-async function requestContent( userId, title, path, type ) {
+async function registryContentsDB( userId, title, path, type ) {
     return await pool.query( 'INSERT INTO CONTENTS ( user_id, title, path, type ) VALUES ( $1, $2, $3, $4 ) ', [ userId, title, path, type ] );
 }
 
 export async function POST( req : Request ) {
     //process.cwd() : 현재 작업 디렉토리를 반환
-    try {        
+    try {
         const { fileName, fileData, userName, userId, } = await req.json();
         const timestamp = Date.now();
 
@@ -47,7 +47,7 @@ export async function POST( req : Request ) {
             if ( err ) {
                 console.log( 'failed to write file' );
             } else {
-                const result = requestContent( userId, 'tempTitle', filePath, 'glb' );
+                const result = registryContentsDB( userId, 'tempTitle', filePath, 'glb' );
                 console.log( result );
             }
         } );

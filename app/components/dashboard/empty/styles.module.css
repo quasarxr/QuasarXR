@@ -1,0 +1,43 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 5px;
+    width : 293px;
+    height : 244px;
+    background-color: #acacac;
+}
+
+.card:hover {
+    background-color: #73ddf8;
+}
+
+.card:hover .icon {
+    color: #ffffff;
+}
+
+.card:hover .textArea {
+    color: #ffffff;
+}
+
+.textArea {
+    text-align: center;
+    width: 100%;
+    height: auto;
+    font-size: 1.5em;
+    user-select: none;
+}
+
+.iconArea {
+    display: flex;
+    justify-content: center;;
+}
+
+.iconBox {
+    margin: 0 7px;
+}
+
+.icon {
+    color: black;
+    font-size: 5em;
+}

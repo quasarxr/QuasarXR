@@ -21,7 +21,6 @@ export interface PalletComponentRef {
 // }
 
 let _PalletPromise = null;
-let _EngineInstance = null;
 let _Module = null; //TODO : remove this variable
 
 interface Props {
@@ -35,7 +34,7 @@ interface Props {
 
 const _scrollKeyword = 'no-scroll';
 
-const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, onload, preload, size, scroll = true } : Props, ref ) => {
+const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefined, mode, onload, preload, size, scroll = true } : Props, ref ) => {
     useImperativeHandle( ref, () => ({
     }));
     
@@ -51,34 +50,43 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
     // declare session
     // declare login form
     const [ showLogin, setShowLogin ] = useState(false);
+    const [ enginInstance, setEngineInstance ] = useState( null );
     const loginCallback = () => setShowLogin(true);
     const logoutCallback = () => logout().then( () => {} );
 
     const updateEngineSession = ( session, callback ) => {
-        if ( _EngineInstance !== null ) {
+        if ( enginInstance !== null ) {
             callback();
-            _EngineInstance.updateSession( session );
+            enginInstance.updateSession( session );
+        }
+    }
+
+    const loadGLB = ( dataURL ) => {
+        console.log( 'loadGLB', enginInstance !== null, dataURL );
+
+        if ( enginInstance !== null && dataURL !== null ) {
+            console.log( ' engine exist ' );
+            enginInstance.loadGLTF( dataURL, gltf => {
+                console.log( 'success load gltf' , dataURL );
+                if ( onload ) onload( gltf );
+                enginInstance.sceneGraph.add( gltf.scene );
+            } );
         }
     }
 
     useEffect( () => {
-
         if ( _PalletPromise === null ) {
             console.log( 'Create Renderer' );
             _PalletPromise = import ( '@/PalletEngine/module' );
             _PalletPromise.then( pallet => {
                 _Module = pallet;
                 pallet._engineFactory( { mode : mode }, ( engine ) => {
-                    _EngineInstance = engine;
+                    setEngineInstance( engine );
+                    console.log( '_EngineInstance : ', enginInstance );
 
                     if ( preload ) preload( engine );
 
-                    if ( url ) {
-                        engine.loadGLTF( url, gltf => {
-                            if ( onload ) onload( gltf );
-                            engine.sceneGraph.add( gltf.scene );
-                        } );
-                    }
+                    //loadGLB( url );
                     if ( loadingRef.current ) {
                         loadingRef.current.hide();
                     }
@@ -105,9 +113,11 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url, mode, on
                 _Module._dispose();
             }           
         }
-
-
     }, [] );
+
+    useEffect( () => {
+        loadGLB( url );
+    }, [ url, enginInstance ] );
 
     useEffect( () => {
         sessionRef.current = session;

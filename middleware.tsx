@@ -23,10 +23,11 @@ export async function middleware( req : NextRequest ) {
     }
 
     const validAuth = validCheck();
+    console.log( validAuth, req.nextUrl.pathname );
 
     if ( validAuth && req.nextUrl.pathname === '/' ) {
         return NextResponse.redirect( new URL( '/dashboard', req.url ) );
-    } else if ( ! validAuth && req.nextUrl.pathname !== '/') {
+    } else if ( ! validAuth && req.nextUrl.pathname === '/dashboard') {
         return NextResponse.redirect( new URL( '/', req.url ) );
     }
 

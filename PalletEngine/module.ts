@@ -1326,9 +1326,9 @@ class PalletEngine extends PalletElement {
         controller.registerOnSelect( ( param : IntersectionParam ) => {
             if ( param.object ) {
                 const data = this.tweenMgr.elements( param.object );
-                this.gui.tweenGraph.update( data );
+                this.gui?.tweenGraph.update( data );
             } else {
-                this.gui.tweenGraph.clear();
+                this.gui?.tweenGraph.clear();
             }
         } );
 

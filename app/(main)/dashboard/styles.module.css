@@ -1,0 +1,22 @@
+.container {
+    width: 100vw;
+    height: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.mainArea {
+    width: 100%;
+    margin: 50px;
+    height: infinite;
+    display: grid;
+    gap: 25px;
+    grid-template-columns: repeat( auto-fit, 343px );
+    justify-content: center;
+    
+}
+
+.customLink {
+    color: inherit;
+    text-decoration: none;
+}

@@ -1,0 +1,47 @@
+.card {
+    padding: 5px;
+    width : 293px;
+    height : 244px;
+    background-color: #acacac;
+}
+
+.card:hover {
+    background-color: #73ddf8;
+}
+
+.card:hover .textArea, .card:hover .iconText {
+    color: #ffffff;
+}
+
+.textArea {
+    width: 100%;
+    height: auto;
+}
+
+.iconArea {
+    display: flex;
+}
+
+.iconBox {
+    display: flex;
+    margin: 0 7px;
+}
+
+.icon {
+    color: white;
+    margin: 0 5px;
+}
+
+.iconText {
+    font-size: 11px;
+    user-select: none;
+}
+
+.icon:hover {
+    color: rgb(65, 65, 65);
+}
+
+.customLink {
+    color: inherit;
+    text-decoration: none;
+}
