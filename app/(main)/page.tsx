@@ -3,9 +3,17 @@ import Link from 'next/link';
 import BmcaWidget from '../components/bmac/coffee';
 import PalletComponent from '../components/engine';
 import GridView from '../components/onpage/grid/gridView';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/next-auth-option';
+import { redirect } from 'next/navigation';
 
-export default function Page() {
-  const redirects = { about: "", demo: "", editor: "SubApp", document: "", letter: "" };
+export default async function Page() {
+
+  // const session = await getServerSession(authOptions);
+
+  // if ( session ) {
+  //   redirect( '/dashboard' );
+  // }
 
   return (
     <div className={styles.container}>

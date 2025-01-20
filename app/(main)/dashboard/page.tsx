@@ -6,11 +6,13 @@ import Card from '@/app/components/dashboard/card';
 import EmptyCard from '@/app//components/dashboard/empty';
 import styles from './styles.module.css';
 import { contentList } from '@/app/actions/contents';
+import { useRouter } from 'next/navigation';
 
 export default function dashboardPage() {
 
     const { data : session } = useSession();
     const [userItems, setUserItems] = useState([]);
+    const router = useRouter();
 
     async function fetchUserContents( user_id ) {
         const list = await contentList( user_id );
@@ -18,10 +20,14 @@ export default function dashboardPage() {
     };
 
     useEffect( () => {
+        // if ( !session ) {
+        //     router.push( '/' );
+        // }
+    
         if ( session?.user ) {
             fetchUserContents( session?.user?.user_id ).then( data => {
                 setUserItems( data );
-            } );            
+            } );
         }
     }, [session] );
 
