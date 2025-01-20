@@ -20,15 +20,15 @@ export default function dashboardPage() {
     };
 
     useEffect( () => {
-        // if ( !session ) {
-        //     router.push( '/' );
-        // }
-    
-        if ( session?.user ) {
-            fetchUserContents( session?.user?.user_id ).then( data => {
-                setUserItems( data );
-            } );
-        }
+        if ( session ) {
+            if ( session.user ) {
+                fetchUserContents( session?.user?.user_id ).then( data => {
+                    setUserItems( data );
+                } );
+            }
+        } else {
+            router.push( '/' );
+        }    
     }, [session] );
 
     return (
