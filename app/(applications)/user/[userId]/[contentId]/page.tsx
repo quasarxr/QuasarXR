@@ -19,9 +19,7 @@ export default function userPage() {
     }
 
     useEffect( () => {
-        console.log( userId, contentId );
         requestFileURL( userId, contentId ).then( res => {
-            console.log(res);
             setContentURL( res );
         })
     }, [] );

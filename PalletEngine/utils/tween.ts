@@ -286,7 +286,6 @@ export class TweenManager {
             Object.keys( json ).forEach( ( key ) => {
                 if ( data['Object3D'][ key ] ) {
                     const object = data['Object3D'][ key ];
-                    console.log( object );
                     const tweens = json[ key ];
                     tweens.forEach( ( tween ) => {
                         this.add( {

@@ -1453,7 +1453,6 @@ class PalletEngine extends PalletElement {
         };
 
         this.gltfLoader.load( url , gltf => {
-            console.log( gltf );
             onload( gltf );
 
             if ( isAppData ) {
@@ -1489,7 +1488,6 @@ class PalletEngine extends PalletElement {
         tweenObject.name = 'tweenData';
         tweenObject.userData.tweens = this.tweenMgr.export();
         tempObject3D.add( tweenObject );
-        console.log( 'expoting...', object );
         
         const promise = new Promise( ( resolve, reject ) => {                
             const exporter = new GLTFExporter();
@@ -1613,7 +1611,6 @@ class PalletEngine extends PalletElement {
     applyEditorCode() {
         const localIRC = this.irc as DesktopIRC;
         const obj = localIRC.context;
-        console.log( obj );
         let code = 0;
         let msg = undefined;
         if ( this.editScriptIndex < 0 ) {
