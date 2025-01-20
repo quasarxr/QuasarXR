@@ -3,7 +3,8 @@ import { NextResponse, NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 export async function middleware( req : NextRequest ) {
-    const token = await getToken( { req, secret: process.env.NEXTAUTH_SECRET } );
+    const token = await getToken( { req, secret: process.env.NEXTAUTH_SECRET, cookieName: "__Secure-next-auth.session-token" } );
+    console.log( token );
 
     const validCheck = () => {
         return ( Number( token?.exp ) < Date.now() ) && ( token?.user_id );
@@ -23,7 +24,6 @@ export async function middleware( req : NextRequest ) {
     }
 
     const validAuth = validCheck();
-    console.log( validAuth, req.nextUrl.pathname );
 
     if ( validAuth && req.nextUrl.pathname === '/' ) {
         return NextResponse.redirect( new URL( '/dashboard', req.url ) );
