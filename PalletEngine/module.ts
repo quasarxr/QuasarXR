@@ -962,7 +962,7 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'file-import', ( url ) => {
             this.loadGLTF( url, gltf => {
                 this.sceneGraph.add( gltf.scene );
-            });
+            } );
         } );
 
         EventEmitter.on( 'file-export', () => {            
@@ -970,10 +970,9 @@ class PalletEngine extends PalletElement {
                 FileUtil.DownloadFile( 'scene.glb', gltf );
             } );
         } );
-        
+
         EventEmitter.on( 'system-storage', () => {
             this.exportGLTF().then( gltf => {
-                console.log( this.getSession() );
                 const data = {
                     url : 'api/upload',
                     session : this.getSession(),
@@ -1438,8 +1437,8 @@ class PalletEngine extends PalletElement {
         }
     }
 
-    loadGLTF( url : string, onload : Function ) {
-        const findTweenNodes = ( node : THREE.Group | THREE.Object3D | THREE.Scene ) : {} => {
+    loadGLTF( url : string, onload : Function, isAppData = false ) {
+        const extractTweenNodes = ( node : THREE.Group | THREE.Object3D | THREE.Scene ) => {
             let tweenNodes = { 'Root' : null, 'Object3D' : {} };
             node.traverse( ( object ) => {
                 if ( object.name === 'tweenData' ) {
@@ -1449,19 +1448,24 @@ class PalletEngine extends PalletElement {
                     tweenNodes.Object3D[ object.userData.tweenUID ] = object;
                 }
             } );
+
             return tweenNodes;
         };
 
         this.gltfLoader.load( url , gltf => {
             console.log( gltf );
-
-            const tweenData = findTweenNodes( gltf.scene );
-            if ( tweenData[ 'Root' ] ) {
-                this.tweenMgr.import( tweenData );
-            }            
-
             onload( gltf );
-            this.sceneGraph.add( gltf.scene );
+
+            if ( isAppData ) {
+                const root = gltf.scene.children[0]; // exportRoot
+                this.tweenMgr.import( extractTweenNodes( gltf.scene ) );
+
+                root.children.forEach( object => {
+                    if ( object.name === 'system' ) {
+                        this.objGroup.add( ...object.children ); // attach object group
+                    }
+                } );
+            }
         }, /* onProgress, onError */ );
     }
 

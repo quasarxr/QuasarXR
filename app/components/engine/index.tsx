@@ -50,39 +50,33 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
     // declare session
     // declare login form
     const [ showLogin, setShowLogin ] = useState(false);
-    const [ enginInstance, setEngineInstance ] = useState( null );
+    const [ engineInstance, setEngineInstance ] = useState( null );
     const loginCallback = () => setShowLogin(true);
     const logoutCallback = () => logout().then( () => {} );
 
     const updateEngineSession = ( session, callback ) => {
-        if ( enginInstance !== null ) {
+        if ( engineInstance ) {
             callback();
-            enginInstance.updateSession( session );
+            engineInstance.updateSession( session );
         }
     }
 
     const loadGLB = ( dataURL ) => {
-        console.log( 'loadGLB', enginInstance !== null, dataURL );
-
-        if ( enginInstance !== null && dataURL !== null ) {
-            console.log( ' engine exist ' );
-            enginInstance.loadGLTF( dataURL, gltf => {
-                console.log( 'success load gltf' , dataURL );
+        if ( engineInstance && dataURL !== null && dataURL !== '' ) {
+            engineInstance.loadGLTF( dataURL, gltf => {
                 if ( onload ) onload( gltf );
-                enginInstance.sceneGraph.add( gltf.scene );
-            } );
+            }, true );
         }
     }
 
+    // TODO : refactoring here
     useEffect( () => {
         if ( _PalletPromise === null ) {
-            console.log( 'Create Renderer' );
             _PalletPromise = import ( '@/PalletEngine/module' );
             _PalletPromise.then( pallet => {
                 _Module = pallet;
                 pallet._engineFactory( { mode : mode }, ( engine ) => {
                     setEngineInstance( engine );
-                    console.log( '_EngineInstance : ', enginInstance );
 
                     if ( preload ) preload( engine );
 
@@ -91,10 +85,6 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
                         loadingRef.current.hide();
                     }
                     //engine.resizeRenderer( { canvas : canvasRef.current } );
-
-                    if ( sessionRef.current !== null ) {
-                        updateEngineSession( sessionRef.current, () => {} );
-                    }
                     
                     pallet._createAuthController( sessionRef.current, loginCallback, logoutCallback );
                 } );
@@ -117,12 +107,12 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
 
     useEffect( () => {
         loadGLB( url );
-    }, [ url, enginInstance ] );
+    }, [ url, engineInstance ] );
 
     useEffect( () => {
         sessionRef.current = session;
-        updateEngineSession( session, () => console.log( 'session updated' ) );
-    }, [ session ] );
+        updateEngineSession( session, () => {} );
+    }, [ session, engineInstance ] );
 
     return (
         <div id='canvas-container' ref={containerRef} style={style}>

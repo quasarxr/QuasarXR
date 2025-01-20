@@ -183,7 +183,6 @@ export class TweenManager {
         const tween = new TweenElement(  new TWEEN.Tween( param.object[ param.type ] ).to( param.to, param.duration * 1000 )
             .easing( TWEEN.Easing.Quadratic.Out ), param.name, param.type );
         param.object.userData.tweenUID = generateTweenID();
-        console.log( param.object.userData, tween );
         return this.data.set( param.object, [ ...this.data.get( param.object ) || [], tween ] as TweenElement[] );
     }
 
@@ -281,38 +280,30 @@ export class TweenManager {
 
     import( data ) {
         //this.data = data;
-        const tweenJSON = data['Root'].userData?.tweens;
-
-        if ( tweenJSON ) {
-            try {
-                const json = JSON.parse( tweenJSON );
-                console.log( json );
-
-                Object.keys( json ).forEach( ( key ) => {
-                    console.log( key );
-                    if ( data['Object3D'][ key ] ) {
-                        const object = data['Object3D'][ key ];
-                        const tweens = json[ key ];
-                        tweens.forEach( ( tween ) => {
-                            this.add( {
-                                 object,
-                                 name : tween.name,
-                                 type : tween.type,
-                                 from : tween.valuesStart,
-                                 to : tween.valuesEnd,
-                                 duration : tween.duration / 1000,
-                                 easing : tween.easing,
-                            } );
+        try {
+            const tweenJSON = data?.Root?.userData?.tweens;
+            const json = JSON.parse( tweenJSON );
+            Object.keys( json ).forEach( ( key ) => {
+                if ( data['Object3D'][ key ] ) {
+                    const object = data['Object3D'][ key ];
+                    console.log( object );
+                    const tweens = json[ key ];
+                    tweens.forEach( ( tween ) => {
+                        this.add( {
+                                object,
+                                name : tween.name,
+                                type : tween.type,
+                                from : tween.valuesStart,
+                                to : tween.valuesEnd,
+                                duration : tween.duration / 1000,
+                                easing : tween.easing,
                         } );
-                    }
-                } );
-
-            } catch ( e ) {
-                console.error( e );
-            }
+                    } );
+                }
+            } );
+        } catch ( e ) {
+            console.error( e );
         }
-
-        console.log( this );
     }
 
     export() {
