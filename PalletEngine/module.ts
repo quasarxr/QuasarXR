@@ -54,6 +54,8 @@ import { AuthController } from './utils/auth';
 // tween
 import TWEEN from 'three/examples/jsm/libs/tween.module';
 
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry';
+
 function mixin( target, ...sources ) {
     Object.assign( target.prototype, ...sources );
 }
@@ -1067,7 +1069,7 @@ class PalletEngine extends PalletElement {
         let tmp_material = undefined;
 
         EventEmitter.on( 'create-box', () => {
-            tmp_geometry = new THREE.BoxGeometry();
+            tmp_geometry = new RoundedBoxGeometry( 1, 1, 1, 4, 0.2 );// new THREE.BoxGeometry();
             tmp_material = new THREE.MeshPhysicalMaterial();
             const b = new THREE.Mesh( tmp_geometry, tmp_material );
             b.castShadow = true;
