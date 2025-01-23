@@ -4,14 +4,12 @@ import FileUtil from '../utils/file';
 import EventEmitter from '../gui/event';
 import MathUtil from '../utils/math';
 
-// tween
-import TWEEN from 'three/examples/jsm/libs/tween.module';
-
 // plugin
-import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker/plugin';
-import { RenderViewBundle, RenderViewApi } from './plugins/renderview/plugin';
+import { PathPickerBundle, PathPickerApi } from './plugins/pathpicker';
+import { RenderViewBundle, RenderViewApi } from './plugins/renderview';
 import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tweenGraph';
-import { AuthenticatorBundle ,AuthenticatorApi } from './plugins/auth/authenticator';
+import { SceneGraphBundle, SceneGraphApi } from './plugins/graph/sceneGraph';
+import { AuthenticatorBundle ,AuthenticatorApi } from './plugins/auth';
 
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
@@ -129,6 +127,15 @@ interface PaneConfig {
 class PalletPane extends Pane {
     constructor( option : PaneConfig ) {
         super( option );
+        this.registerPluings();
+    }
+
+    registerPluings() {
+        this.registerPlugin( PathPickerBundle );
+        this.registerPlugin( RenderViewBundle );
+        this.registerPlugin( TweenGraphBundle );
+        this.registerPlugin( AuthenticatorBundle );
+        this.registerPlugin( SceneGraphBundle );
     }
 
     reposition( left : number, top : number ) {
@@ -173,11 +180,6 @@ export default class PalletGUI {
 
     createPane( id : string, container : HTMLElement = null ) : PalletPane {
         this.paneMap.set( id, new PalletPane( { container: container } as PaneConfig ) );
-        this.paneMap.get( id ).registerPlugin( PathPickerBundle );
-        this.paneMap.get( id ).registerPlugin( RenderViewBundle );
-        this.paneMap.get( id ).registerPlugin( TweenGraphBundle );
-        this.paneMap.get( id ).registerPlugin( AuthenticatorBundle );
-        //console.log( id );
         return this.paneMap.get( id );
     }
 
@@ -256,7 +258,7 @@ export default class PalletGUI {
         
         this.deploySystem( tab.pages[ TAB_PAGE_ID.SYSTEM ] );
         this.deployCreation( tab.pages[ TAB_PAGE_ID.CREATION ] );
-        this.deploySelection( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
+        //this.deploySelection( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deployTransform( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deployMaterial( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
         this.deplayAnimation( tab.pages[ TAB_PAGE_ID.PROPERTY ] );
@@ -516,11 +518,15 @@ export default class PalletGUI {
         } );
     }
     
-    deployCreation( page : TabPageApi ) {        
+    deployCreation( page : TabPageApi ) {
+        const blade = page.addBlade( { view : 'scenegraph' } ); // scene graph view
+        this.guiMap.set( 'scene-graph', {uid: 'scene-graph', pi: blade, events: [] } );
+
         _GuiDatas[ GUI_DATA_ID.CREATION ].forEach( el => {
             const btn = page.addButton( { title: el.title } );
             btn.on( 'click', ev => EventEmitter.emit( el.emit, null ) );
         } );
+        
     }
 
     deployTween( page : TabPageApi ) {
@@ -687,7 +693,11 @@ export default class PalletGUI {
     }
 
     get tweenGraph() : TweenGraphApi {
-        return this.guiMap?.get('tween-graph').pi as TweenGraphApi;
+        return this.guiMap?.get('tween-graph')?.pi as TweenGraphApi;
+    }
+
+    get sceneGraph() : SceneGraphApi {
+        return this.guiMap?.get('scene-graph')?.pi as SceneGraphApi;
     }
 
     get tweenBindings() {
