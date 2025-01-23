@@ -767,9 +767,9 @@ class PalletEngine extends PalletElement {
         this.engineMode = mode;
         this.sceneGraph = new THREE.Scene();
         this.envGroup = new THREE.Group();
-        this.envGroup.name = 'system';
+        this.envGroup.name = 'env-system';
         this.objGroup = new THREE.Group();
-        this.objGroup.name = 'system';
+        this.objGroup.name = 'obj-system';
         this.objGroup.layers.set( RaycastLayer.NoRaycast );
         this.sceneGraph.add( this.envGroup );
         this.sceneGraph.add( this.objGroup );
@@ -804,6 +804,7 @@ class PalletEngine extends PalletElement {
         // create gizmo instance
         const transformer = desktopIRC.createControls( this.camera, canvas );
         const gizmo = transformer.getHelper();
+        gizmo.name = 'Gizmo';
         this.sceneGraph.add( gizmo );
         
         // prevent viewport dragging during gizmo interaction
@@ -832,6 +833,7 @@ class PalletEngine extends PalletElement {
         };
 
         this.shadowGroup = new THREE.Group();
+        this.shadowGroup.name = 'ShadowGroup';
         this.sceneGraph.add( this.shadowGroup );
 
         this.renderTarget = new THREE.WebGLRenderTarget( 1024, 1024 );
@@ -968,6 +970,8 @@ class PalletEngine extends PalletElement {
             const loader = new THREE.TextureLoader();
             return loader.load( url );
         };
+
+        this.gui.sceneGraph.update( this.sceneGraph );
 
         // system
         EventEmitter.on( 'file-import', ( url ) => {
@@ -1471,7 +1475,7 @@ class PalletEngine extends PalletElement {
                 this.tweenMgr.import( extractTweenNodes( gltf.scene ) );
 
                 root.children.forEach( object => {
-                    if ( object.name === 'system' ) {
+                    if ( object.name.includes( 'system' ) ) {
                         this.objGroup.add( ...object.children ); // attach object group
                     }
                 } );
