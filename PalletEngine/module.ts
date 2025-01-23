@@ -369,6 +369,15 @@ class DesktopIRC extends InteractionController {
                     break;
                 case 'KeyR':
                     this.controls.setMode( 'scale' );
+                    break;
+                case 'Delete':
+                    console.log( 'delete key', this.context );
+                    if ( this.context ) {
+                        this.controls.detach();
+                        this.context.removeFromParent();
+                        this.context = null;
+                    }
+                    break;
             }
         } );
 
