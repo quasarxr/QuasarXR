@@ -74,6 +74,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 enum MouseEvent { Left = 0, Wheel = 1, Right = 2 };
 enum RaycastLayer { Default = 0, NoRaycast = 1 };
+
+const _userAddParam = { target : 'user', searchable : true, raycastable : true };
  
 function findParentByType( object , type ) {
     if (object.parent instanceof type) {
@@ -672,11 +674,7 @@ class PalletEngine extends PalletElement {
         super();
         this.engineMode = mode;
         this.sceneGraph = new PalletScene();
-        this.envGroup = new THREE.Group();
-        this.envGroup.name = 'env-system';
-        this.objGroup = new THREE.Group();
-        this.objGroup.name = 'obj-system';
-        this.objGroup.layers.set( RaycastLayer.NoRaycast );
+
         this.cameraPivot = new THREE.Object3D();
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
         const listener = new THREE.AudioListener();
@@ -882,20 +880,19 @@ class PalletEngine extends PalletElement {
         } );
 
         EventEmitter.on( 'env-dirlight-intensity', value => {
-            this.directionalLight.intensity = value;
+            this.sceneGraph.defaultLights.directional.intensity = value;
         } );
 
         EventEmitter.on( 'env-dirlight-color', color => {
-            this.directionalLight.color.setHex( color );
+            this.sceneGraph.defaultLights.directional.color.setHex( color );
         } );
 
         EventEmitter.on( 'env-ambient-intensity', value => {
-            this.ambientLight.intensity = value;
+            this.sceneGraph.defaultLights.ambient.intensity = value;
         } );
 
         EventEmitter.on( 'env-ambient-color', color => {
-            console.log( color );
-            this.ambientLight.color.setHex( color );
+            this.sceneGraph.defaultLights.ambient.color.setHex( color );
         } );
 
         EventEmitter.on('modify-position', data => {
@@ -926,7 +923,7 @@ class PalletEngine extends PalletElement {
             const b = new THREE.Mesh( tmp_geometry, tmp_material );
             b.castShadow = true;
             b.receiveShadow = true;
-            this.sceneGraph.addObject( b );
+            this.sceneGraph.addObject( b, _userAddParam );
         } );
 
         EventEmitter.on( 'create-sphere', () => {
@@ -935,25 +932,25 @@ class PalletEngine extends PalletElement {
             const s = new THREE.Mesh( tmp_geometry, tmp_material );
             s.castShadow = true;
             s.receiveShadow = true;
-            this.sceneGraph.addObject( s );
+            this.sceneGraph.addObject( s, _userAddParam );
         } );
 
         EventEmitter.on( 'create-plane', () => {
             tmp_geometry = new THREE.PlaneGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
         } );
 
         EventEmitter.on( 'create-cone', () => {
             tmp_geometry = new THREE.ConeGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
         } );
 
         EventEmitter.on( 'create-cylinder', () => {
             tmp_geometry = new THREE.CylinderGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ) );
+            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
         } );
 
         let light = undefined;
@@ -968,14 +965,14 @@ class PalletEngine extends PalletElement {
             mesh.position.set( 0, 2.5, 0 );
             mesh.attach( target );
             light.target = target;
-            this.sceneGraph.addObject( mesh );
+            this.sceneGraph.addObject( mesh, _userAddParam );
         } );
 
         EventEmitter.on( 'create-pointlight', ( data ) => {
             light = new THREE.PointLight( 0xff0000, 100 );
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             mesh.add( light );            
-            this.sceneGraph.addObject( mesh );
+            this.sceneGraph.addObject( mesh, _userAddParam );
         } );
 
         EventEmitter.on( 'create-spotlight', () => {
@@ -987,7 +984,7 @@ class PalletEngine extends PalletElement {
             light.target = target;
             mesh.attach( target );
             light.castShadow = true;
-            this.sceneGraph.addObject( mesh );
+            this.sceneGraph.addObject( mesh, _userAddParam );
             const helper = new THREE.SpotLightHelper( light );
             mesh.attach( helper );
             this.addUpdator( () => {
@@ -1002,7 +999,7 @@ class PalletEngine extends PalletElement {
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             mesh.position.set( 0, 5, 0 );
             mesh.add( light );
-            this.sceneGraph.addObject( mesh );
+            this.sceneGraph.addObject( mesh, _userAddParam );
         } );
 
         EventEmitter.on( 'create-camera', () => {
@@ -1026,8 +1023,8 @@ class PalletEngine extends PalletElement {
             } );
 
             this.subCameras.push( helper );
-            this.sceneGraph.addObject( camera );
-            this.sceneGraph.addObject( helper );
+            this.sceneGraph.addObject( camera, _userAddParam );
+            this.sceneGraph.addObject( helper, _userAddParam );
         } );
 
         
@@ -1206,7 +1203,7 @@ class PalletEngine extends PalletElement {
             this.controller.enabled = true;
             this.camera.position.set( 0, 1.6, 0 );
             this.cameraPivot.position.set( 0, 0, 0 );
-            this.sceneGraph.add( this.camera );
+            this.sceneGraph.addObject( this.camera );
         } );
         
         if ( interactions ) {
@@ -1246,7 +1243,7 @@ class PalletEngine extends PalletElement {
 
                 root.children.forEach( object => {
                     if ( object.name.includes( 'system' ) ) {
-                        this.objGroup.add( ...object.children ); // attach object group
+                        this.sceneGraph.addObjects( object.children, _userAddParam ); // attach object group
                     }
                 } );
             }
@@ -1256,7 +1253,7 @@ class PalletEngine extends PalletElement {
     loadFBX( url : string, onload : Function, option : Object = null ) {
         this.fbxLoader.load( url, model => {
             onload( model );
-            this.sceneGraph.add( model );
+            this.sceneGraph.addObject( model, _userAddParam );
         } )
     }
 
@@ -1265,7 +1262,7 @@ class PalletEngine extends PalletElement {
         audioLoader.load( url, onload );
     }
 
-    exportGLTF( object : THREE.Object3D = this.objGroup ) {
+    exportGLTF( object : THREE.Object3D = this.sceneGraph.users ) {
         const tempObject3D = new THREE.Object3D();
         tempObject3D.name = 'exportRoot';
         tempObject3D.add( object );
@@ -1279,7 +1276,7 @@ class PalletEngine extends PalletElement {
             exporter.parse( tempObject3D,  gltf => {
                 resolve( gltf );
                 //recovery to the scene
-                this.sceneGraph.add( object );
+                this.sceneGraph.addObject( object, _userAddParam );
             }, { binary : true, includeCustomExtensions : true } );
         } );
 
