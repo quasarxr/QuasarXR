@@ -27,7 +27,7 @@ function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
   const groundGroup = new THREE.Group();
   groundGroup.name = 'default ground';
   const gridGeom = new THREE.PlaneGeometry( size, size, segment, segment ).rotateX( Math.PI / 2 );
-  const gridMat = new THREE.MeshStandardMaterial( { transparent: true, opacity: 0.2, color: 0x576076 } );
+  const gridMat = new THREE.MeshStandardMaterial( { transparent: true, opacity: 0.2, color: 0x576076, side: THREE.DoubleSide } );
   const gridPlane = new THREE.Mesh( gridGeom, gridMat );
   gridPlane.isGround = true;
   gridPlane.castShadow = false;
