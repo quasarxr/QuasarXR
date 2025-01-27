@@ -14,13 +14,14 @@ const _cacheSize = 256;
 type AddParam = {
   target : string,
   searchable : boolean,
+  raycastable : boolean,
 };
-
-const _defaultAddParam = { target : 'sceneGraph', searchable : true };
 
 type SearchOption = {
 
 };
+
+const _defaultAddParam = { target : 'sceneGraph', searchable : true, raycastable : true };
 
 function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
   const groundGroup = new THREE.Group();
@@ -35,6 +36,8 @@ function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
   
   const gridHelper = new THREE.GridHelper( size, division, 0x7c7c7c /** center color */, 0x5f5f5f /** grid color */);
   groundGroup.add( gridHelper );
+
+  groundGroup.userData.shortcut = { 'plane' : gridPlane, 'helper' : gridHelper };
   return groundGroup;
 }
 
@@ -59,6 +62,8 @@ function _createLight( useShadow : boolean = true ) : THREE.Group {
   const ambientLight = new THREE.AmbientLight( 0xffffff );
   ambientLight.intensity = 1;
   lightGroup.add( ambientLight );
+
+  lightGroup.userData.shortcut = { 'directionalLight' : dirLight , 'ambientLight' : ambientLight };
   
   return lightGroup;
 }
@@ -105,7 +110,13 @@ function _createBasicScene() : THREE.Group {
   const groundGroup = _createGround();
   group.add( groundGroup );
   const lightGroup = _createLight();
-  group.add( lightGroup );  
+  group.add( lightGroup );
+  group.userData.shortcut = {
+    'groundPlane' : groundGroup.userData.shortcut.plane,
+    'groundHelper' : groundGroup.userData.shortcut.helper,
+    'directionalLight' : lightGroup.userData.shortcut.directionalLight,
+    'ambientLight' : lightGroup.userData.shortcut.ambientLight,
+  }
   return group;
 }
 
@@ -174,6 +185,11 @@ export class PalletScene extends THREE.Scene {
       EventEmitter.emit( 'modified-scenegraph', this );        
       return object;
   }
+
+  addObjects( objects : [ THREE.Object3D ], opt : AddParam = _defaultAddParam ) : [ THREE.Object3D ] {
+    objects.forEach( o => this.addObject( o , opt ) );
+    return objects;
+  }
     
   removeObject( object ): boolean {
     let success = false;
@@ -187,17 +203,22 @@ export class PalletScene extends THREE.Scene {
     return success;
   }
 
-  updateMaps( object ) {
-    this.uuidToObject.set( object.uuid, object );
-    const typeArr = this.typeToObject.get( object.type );
-    if ( typeArr )
-        typeArr.push( object );
-    else
-        this.typeToObject.set( object.type, [ object ] );
-  }
-
-  searchObject( option : SearchOption ) {
-
+  updateMaps( input = undefined ) {
+    const allocate = ( o ) => {
+      this.uuidToObject.set( o.uuid, o );
+        const typeArr = this.typeToObject.get( o.type );
+        if ( typeArr ) {
+          if ( ! typeArr.includes( o ) ) { // not exist element
+            typeArr.push( o );
+          }          
+        } else {
+          this.typeToObject.set( o.type, [ o ] );
+        }            
+    }
+    const target = input || this;
+    target.traverse( object => {
+      allocate( object );
+    } );
   }
 
   exist( object ): boolean {
@@ -205,22 +226,30 @@ export class PalletScene extends THREE.Scene {
       return obj !== null && obj !== undefined;
   }
 
-  findObject( clue ) {
-    
-  }
-  
-  traverse( callback ): void {
-      super.traverse( o => callback( o ) );
+  searchObjects( options : SearchOption ) {
+
   }
 
+  findObjects( predict : ( object : THREE.Object3D ) => boolean ) :  THREE.Object3D[] {
+    const res = [];
+    this.traverse( object => {
+      if ( predict( object ) ) res.push( object );
+    } );
+    return res;
+  }
+
+  traverse( callback : ( object : THREE.Object3D ) => void ) {
+    super.traverse( callback );
+  }
+  
   dispose() {
 
   }
 
   set visibleGround( value ) {
-    // this.sceneGraph.userData.gridPlane.visible = value;
-    // this.sceneGraph.userData.gridHelper.visible = value;
-    // this.shadowGroup.visible = value;
+    this.defaultGround.plane.visible = value;
+    this.defaultGround.helper.visible = value;
+    //this.shadowGroup.visible = value;
   }
 
   set background( value ) {
@@ -232,7 +261,11 @@ export class PalletScene extends THREE.Scene {
   }
 
   get defaultLights() {
-    return { directional : undefined, ambient : undefined };
+    return { directional : this.basicScene.userData.shortcut.directionalLight, ambient : this.basicScene.userData.shortcut.ambientLight };
+  }
+
+  get defaultGround() {
+    return { plane: this.basicScene.userData.shortcut.groundPlane, helper: this.basicScene.userData.shortcut.groundHelper };
   }
 }
 
