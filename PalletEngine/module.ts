@@ -443,9 +443,11 @@ class DesktopIRC extends InteractionController {
             this.controls.enabled = true;
             const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
             this.targetMaterial = null;
-            if ( group && group.name !== 'system' ) {
-                if ( group === this.context ) {             
-                    // TODO select children       
+            if ( /*group && group.name !== 'system'*/ false ) {
+                // Code written to ensure that the parent is selected when the mesh inside the Group is selected when loading the animation mesh.
+                // Enable after scene refactoring done.
+                if ( group === this.context ) {
+                    // TODO select children
                     this.controls.attach( hitMeshes[ 0 ].object );
                     this.context = hitMeshes[ 0 ].object;
                     eventObject = hitMeshes[ 0 ].object;
