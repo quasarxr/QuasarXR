@@ -23,6 +23,9 @@ const SVG_RIGHT = '<svg width="21" height="21" viewBox="0 0 21 21" fill="none" x
   '<path transform="translate( -2, 0 ) rotate( -90, 12, 12 ) " d="M8 10L11.8665 14L16 10" stroke="white" stroke-linecap="round" stroke-linejoin="round"/>\n' +
   '</svg>\n';
 
+let _updateRequested = false;
+let _pendingData = null;
+
 export class SceneGraphApi extends BladeApi<SceneGraphBladeController> {
 
     public clear() {
@@ -118,7 +121,7 @@ interface ViewConfig {
     viewProps : ViewProps;
 }
 
-const className = ClassName('scene-graph');
+const _className = ClassName('scene-graph');
 
 export class SceneGraphView implements View {
     private readonly document : Document;
@@ -145,34 +148,34 @@ export class SceneGraphView implements View {
     constructor( doc : Document, config : ViewConfig ) {
         this.document = doc;
         this.element = doc.createElement( 'div' );
-        this.element.classList.add( className() );
+        this.element.classList.add( _className() );
         config.viewProps.bindClassModifiers( this.element );
         this.graph = doc.createElement( 'div' );
         this.graph.setAttribute( 'tabindex', '-1' );
-        this.graph.classList.add(className('g'));
+        this.graph.classList.add(_className('g'));
         
         this.element.appendChild( this.graph );
 
         this.controlArea = doc.createElement( 'div' );
-        this.controlArea.classList.add( className('control') );
+        this.controlArea.classList.add( _className('control') );
         this.element.appendChild( this.controlArea );
 
         this.controlAdd = doc.createElement( 'div' );
-        this.controlAdd.classList.add( className( 'btn' ) );
+        this.controlAdd.classList.add( _className( 'btn' ) );
         this.controlAdd.textContent = 'Add';
         this.controlAdd.addEventListener( 'click', event => {
         } );
         this.controlArea.appendChild( this.controlAdd );
         
         this.controlRemove = doc.createElement( 'btn' );
-        this.controlRemove.classList.add( className( 'btn' ) );
+        this.controlRemove.classList.add( _className( 'btn' ) );
         this.controlRemove.textContent = 'Remove';
         this.controlRemove.addEventListener( 'click', event => {
         } );
         this.controlArea.appendChild( this.controlRemove );
 
         this.controlPreview = doc.createElement( 'btn' );
-        this.controlPreview.classList.add( className( 'btn' ) );
+        this.controlPreview.classList.add( _className( 'btn' ) );
         this.controlPreview.textContent = 'Preview';
         this.controlPreview.addEventListener( 'click', event => {
         } );
@@ -191,101 +194,126 @@ export class SceneGraphView implements View {
         this.itemToModel = new WeakMap();
     }
 
-    updateGraph( data : any ) {
-        this.clearGraph();
+    async updateGraph( data : any ) {
+        // https://chatgpt.com/share/679c9e56-de00-8001-b1d6-8d9d75fa4fa1
+        _pendingData = data;
+        if ( _updateRequested ) return;
 
-        (async function() {
-            const rootArea = this.document.createElement('div');
-            this.graph.appendChild( rootArea );
-            data.traverse( object => {
-                const i = this.createItem( object, object.children.length > 0 );
-                this.itemToModel.set( i, object );
-                this.modelToItem.set( object, i );
-                if ( object.parent ) {
-                    const parentItem = this.modelToItem.get( object.parent );
-                    if ( ! this.itemToChild.get( parentItem ) ) {
-                        this.itemToChild.set( parentItem, this.createArea() );
-                        parentItem.parentElement.appendChild( this.itemToChild.get( parentItem ) );
+        _updateRequested = true;
+        await Promise.resolve(); // 다음 microtask에서 실행
+
+        while( _pendingData !== null ) {
+            const currentData = _pendingData;
+            _pendingData = null; // 현재 데이터를 반영하면 pendingData를 초기화
+
+            this.clearGraph();
+
+            (async function() {
+                const rootArea = this.document.createElement('div');
+                this.graph.appendChild( rootArea );
+                this.modelToItem.set( currentData, rootArea );
+
+                currentData.traverse( object => {
+                    const visible = object.userData.browsable || object === currentData;
+                    
+                    if ( visible ) {
+                        const i = this.createItem( object, object.children.length > 0 );
+                        this.itemToModel.set( i, object );
+                        this.modelToItem.set( object, i );
+                        if ( object.parent ) {
+                            const parentItem = this.modelToItem.get( object.parent );
+                            if ( ! this.itemToChild.get( parentItem ) ) {
+                                const className = object.parent === currentData ? 'root-area' : 'child-area';
+                                this.itemToChild.set( parentItem, this.createArea( className ) );
+                                parentItem.parentElement.appendChild( this.itemToChild.get( parentItem ) );
+                            }
+                            this.itemToChild.get( parentItem ).appendChild( i );
+                        } else {
+                            rootArea.appendChild( i );
+                            this.itemToChild.set( i, this.createArea( 'child-area' ) );
+                            rootArea.appendChild( this.itemToChild.get( i ) );
+                            this.itemToChild.get( i ).classList.toggle( 'expanded' );
+                        }
                     }
-                    this.itemToChild.get( parentItem ).appendChild( i );
-                } else {
-                    rootArea.appendChild( i );
-                    this.itemToChild.set( i, this.createArea() );
-                    rootArea.appendChild( this.itemToChild.get( i ) );
-                }
+                } );
+            }.bind( this ))().then( res => {
+                console.log( 'scene update done' );
             } );
-        }.bind( this ))().then( res => {
-            console.log( 'scene update done' );
-        } )
+        }
+
+        _updateRequested = false;        
     }
 
     changeElementName( name : string ) {
         if ( this.selectedElement ) this.selectedElement.textContent = name;
     }
 
-    createArea() : HTMLElement {
+    createArea( className : string = 'child-area' ) : HTMLElement {
         const element = this.document.createElement('div');
-        element.classList.add( className( 'child-area' ) );
-        element.classList.add( 'expanded' );
+        element.classList.add( _className( className ) );
+        //element.classList.add( 'expanded' );
         return element;
     }
 
     createItem( data, useExpand = false ) : HTMLElement {
-        
         const wrapper = this.document.createElement( 'div' );
         wrapper.style.display = 'flex';
         wrapper.draggable = true;
-        wrapper.classList.add( className( 'item' ) );
+        wrapper.classList.add( _className( 'item' ) );
 
+        const expandButton = this.document.createElement( 'div' );
+        expandButton.innerHTML = SVG_RIGHT;
+        expandButton.classList.add( _className( 'item-expand' ) );
+        //expandButton.classList.add( 'expanded' );
+
+        expandButton.addEventListener( 'mousedown', e => {
+            e.stopPropagation();
+            expandButton.classList.add( 'click' );
+        } );
+
+        expandButton.addEventListener( 'mouseover', e => {
+            e.stopPropagation();
+            expandButton.classList.add( 'hover' );
+        } );
+
+        expandButton.addEventListener( 'mouseleave', e => {
+            e.stopPropagation();
+            expandButton.classList.remove( 'hover' );
+        } );
+
+        expandButton.addEventListener( 'mouseup', e => {
+            e.stopPropagation();            
+            expandButton.classList.remove( 'click' );
+            const container = this.itemToChild.get( wrapper );
+
+            expandButton.classList.toggle( 'expanded' );
+            container?.classList.toggle( 'expanded' );
+            if ( expandButton.classList.contains( 'expanded' ) ) {
+                console.log( container );
+                // expandButton.classList.remove( 'expanded' );
+                // container?.classList.remove( 'expanded' );
+                expandButton.innerHTML = SVG_DOWN;
+            } else {
+                console.log( container );
+                // expandButton.classList.add( 'expanded' );
+                // container?.classList.add( 'expanded' );
+                expandButton.innerHTML = SVG_RIGHT;
+            }
+        } );
+        wrapper.appendChild( expandButton );
+            
         if ( useExpand ) {
-            const expandButton = this.document.createElement( 'div' );
-            expandButton.innerHTML = SVG_DOWN;
-            expandButton.classList.add( className( 'item-expand' ) );
-            expandButton.classList.add( 'expanded' );
-
-            expandButton.addEventListener( 'mousedown', e => {
-                e.stopPropagation();
-                expandButton.classList.add( 'click' );
-            } );
-    
-            expandButton.addEventListener( 'mouseover', e => {
-                e.stopPropagation();
-                expandButton.classList.add( 'hover' );
-            } );
-    
-            expandButton.addEventListener( 'mouseleave', e => {
-                e.stopPropagation();
-                expandButton.classList.remove( 'hover' );
-            } );
-    
-            expandButton.addEventListener( 'mouseup', e => {
-                e.stopPropagation();            
-                expandButton.classList.remove( 'click' );
-                const container = this.itemToChild.get( wrapper );
-    
-                if ( expandButton.classList.contains( 'expanded' ) ) {
-                    expandButton.classList.remove( 'expanded' );
-                    
-                    container?.classList.remove( 'expanded' );
-                }
-                else {
-                    expandButton.classList.add( 'expanded' );
-                    container?.classList.add( 'expanded' );
-                }
-                expandButton.innerHTML = expandButton.classList.contains( 'expanded' ) ? SVG_DOWN : SVG_RIGHT;
-            } );
-    
-            wrapper.appendChild( expandButton );
         } else {
-            const dummyButton = this.document.createElement( 'div' );
-            dummyButton.classList.add( className( 'dummy-button' ) );
-            wrapper.appendChild( dummyButton );
+            // const dummyButton = this.document.createElement( 'div' );
+            // dummyButton.classList.add( _className( 'dummy-button' ) );
+            // wrapper.appendChild( dummyButton );
+            expandButton.style.visibility = 'hidden';
         }
 
 
         const text = this.document.createElement( 'div' );
         text.textContent = data['name'] || data['type'];
-        text.classList.add( className( 'item-text' ) );
+        text.classList.add( _className( 'item-text' ) );
         wrapper.appendChild( text );
 
         wrapper.addEventListener( 'mousedown', e => {
@@ -511,6 +539,7 @@ export const SceneGraphBundle : TpPluginBundle = {
     }
 
     .tp-scene-graphv_item-expand {
+        margin : 0 6px 0 0;
         border-radius: 3px;
     }
 
@@ -524,6 +553,15 @@ export const SceneGraphBundle : TpPluginBundle = {
 
     .tp-scene-graphv_dummy-button {
         height: 24px;
+    }
+
+    .tp-scene-graphv_root-area {
+        transition : transform 0.2s;
+        display: none;
+    }    
+        
+    .tp-scene-graphv_root-area.expanded {
+        display: block;
     }
 
     .tp-scene-graphv_child-area {

@@ -75,7 +75,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 enum MouseEvent { Left = 0, Wheel = 1, Right = 2 };
 enum RaycastLayer { Default = 0, NoRaycast = 1 };
 
-const _userAddParam = { target : 'user', searchable : true, raycastable : true };
+const _userAddParam = { category : 'user', searchable : true, raycastable : true, browsable : true };
  
 function findParentByType( object , type ) {
     if (object.parent instanceof type) {
@@ -357,6 +357,7 @@ class DesktopIRC extends InteractionController {
                         this.controls.detach();
                         this.context.removeFromParent();
                         this.context = null;
+                        EventEmitter.emit( 'modified-scenegraph', undefined );
                     }
                     break;
             }
@@ -678,6 +679,8 @@ class PalletEngine extends PalletElement {
         this.sceneGraph = new PalletScene();
 
         this.cameraPivot = new THREE.Object3D();
+        this.cameraPivot.name = 'Camera Pivot';
+        this.cameraPivot.userData = { raycacastable : false, researchable : false, browsable : false };
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
         const listener = new THREE.AudioListener();
         this.camera.add( listener );
@@ -718,7 +721,7 @@ class PalletEngine extends PalletElement {
         const transformer = desktopIRC.createControls( this.camera, canvas );
         const gizmo = transformer.getHelper();
         gizmo.name = 'Gizmo';
-        this.sceneGraph.addObject( gizmo );
+        this.sceneGraph.addObject( gizmo, { category : 'deco', searchable : false, raycastable : true } );
         
         // prevent viewport dragging during gizmo interaction
         transformer.addEventListener( 'dragging-changed', event => {
@@ -925,6 +928,7 @@ class PalletEngine extends PalletElement {
             const b = new THREE.Mesh( tmp_geometry, tmp_material );
             b.castShadow = true;
             b.receiveShadow = true;
+            b.name = 'Box';
             this.sceneGraph.addObject( b, _userAddParam );
         } );
 
@@ -934,25 +938,38 @@ class PalletEngine extends PalletElement {
             const s = new THREE.Mesh( tmp_geometry, tmp_material );
             s.castShadow = true;
             s.receiveShadow = true;
+            s.name = 'Sphere';
             this.sceneGraph.addObject( s, _userAddParam );
         } );
 
         EventEmitter.on( 'create-plane', () => {
             tmp_geometry = new THREE.PlaneGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
+            const p = new THREE.Mesh( tmp_geometry, tmp_material );
+            p.name = 'Plane';
+            p.castShadow = true;
+            p.receiveShadow = true;
+            this.sceneGraph.addObject( p, _userAddParam );
         } );
 
         EventEmitter.on( 'create-cone', () => {
             tmp_geometry = new THREE.ConeGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
+            const c =  new THREE.Mesh( tmp_geometry, tmp_material );
+            c.name = 'Cone';
+            c.castShadow = true;
+            c.receiveShadow = true;
+            this.sceneGraph.addObject( c, _userAddParam );
         } );
 
         EventEmitter.on( 'create-cylinder', () => {
             tmp_geometry = new THREE.CylinderGeometry();
             tmp_material = new THREE.MeshStandardMaterial();
-            this.sceneGraph.addObject( new THREE.Mesh( tmp_geometry, tmp_material ), _userAddParam );
+            const c =  new THREE.Mesh( tmp_geometry, tmp_material );
+            c.name = 'Cylinder';
+            c.castShadow = true;
+            c.receiveShadow = true;
+            this.sceneGraph.addObject( c, _userAddParam );
         } );
 
         let light = undefined;
@@ -961,6 +978,7 @@ class PalletEngine extends PalletElement {
         const lightMaterial1 = new THREE.MeshBasicMaterial({color: 0xcc0000});
         EventEmitter.on( 'create-dirlight', ( data ) => {
             light = new THREE.DirectionalLight( data?.color, data?.intensity );
+            light.name = 'Directional light';
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             const target = new THREE.Mesh( sphereGeometry, lightMaterial1 );
             mesh.add( light );
@@ -972,6 +990,7 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-pointlight', ( data ) => {
             light = new THREE.PointLight( 0xff0000, 100 );
+            light.name = 'Point light';
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             mesh.add( light );            
             this.sceneGraph.addObject( mesh, _userAddParam );
@@ -979,6 +998,7 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-spotlight', () => {
             light = new THREE.SpotLight( 0xffffff, 100, 5, Math.PI / 6 );
+            light.name = 'Spot light';
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             const target = new THREE.Mesh( sphereGeometry, lightMaterial1 );
             mesh.add( light );
@@ -996,6 +1016,7 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-hemispherelight', () => {
             light = new THREE.HemisphereLight( 0x0000ff, 0xff0000, 100 );
+            light.name = 'Hemisphere light';
             light.color.setHSL( 0.6, 1, 0.6 );
             light.groundColor.setHSL( 0.095, 1, 0.75 );
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
@@ -1006,6 +1027,7 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-camera', () => {
             const camera = new THREE.PerspectiveCamera();
+            camera.name = 'Perspective camera';
             camera.near = 0.5;
             camera.far = 10;
             camera.aspect = 1.67;
@@ -1029,6 +1051,9 @@ class PalletEngine extends PalletElement {
             this.sceneGraph.addObject( helper, _userAddParam );
         } );
 
+        EventEmitter.on( 'modified-scenegraph', sceneGraph => {
+            this.gui?.sceneGraph?.update( this.sceneGraph );
+        } );
         
         EventEmitter.emit( 'anim-enable-listen', { value: false } );
         EventEmitter.emit( 'anim-loop-listen', { value: false } );

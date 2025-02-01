@@ -7,16 +7,17 @@ export enum RaycastLayer { Default = 0, NoRaycast = 1 };
 const _cacheSize = 256;
 
 type AddParam = {
-  target : string,
-  searchable : boolean,
-  raycastable : boolean,
+  category : string,
+  searchable : boolean, // get to find function
+  raycastable : boolean, // attend raycaster intersection
+  browsable? : boolean,
 };
 
 type SearchOption = {
 
 };
 
-const _defaultAddParam = { target : 'sceneGraph', searchable : true, raycastable : true };
+const _defaultAddParam = { category : 'sceneGraph', searchable : true, raycastable : true, };
 
 function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
   const groundGroup = new THREE.Group();
@@ -105,9 +106,9 @@ export class PalletScene extends THREE.Scene {
       this.typeToObject = new Map();
       this.deleteQueue = new FixedLengthQueue<THREE.Object3D>( _cacheSize );
 
-      super.add( this.basicScene );
-      super.add( this.decorators );
-      super.add( this.users );
+      this.addObject( this.basicScene, { category : 'sceneGraph', searchable : false, raycastable : false, browsable : false } );
+      this.addObject( this.decorators, { category : 'sceneGraph', searchable : false, raycastable : false, browsable : false } );
+      this.addObject( this.users, { category : 'sceneGraph', searchable : true, raycastable : true, browsable : true } );
             
       //load hdr
       //const hdrUrl = 'studio_small_08_4k.exr';
@@ -126,22 +127,31 @@ export class PalletScene extends THREE.Scene {
       //})();
   }
 
-  addObject( object, opt : AddParam = _defaultAddParam ): THREE.Object3D {
-    switch( opt.target ) {
+  addObject( object, option : AddParam = _defaultAddParam ): THREE.Object3D {
+    switch( option.category ) {
       case 'user':
         this.users.add( object );
+        object.userData.browsable = this.users.userData.browsable;
+        object.userData.searchable = this.users.userData.searchable;
+        object.userData.raycastable = this.users.userData.raycastable;
         break;
       case 'deco':
-        this.decorators.add( object );
+        this.decorators.add( object );        
+        object.userData.browsable = this.decorators.userData.browsable;
+        object.userData.searchable = this.decorators.userData.searchable;
+        object.userData.raycastable = this.decorators.userData.raycastable;
         break;
       case 'scenegraph':
       default:
         super.add( object );
+        object.userData.browsable = option.browsable;
+        object.userData.searchable = option.searchable;
+        object.userData.raycastable = option.raycastable;
         break;
     };
-      this.updateMaps( object );
-      EventEmitter.emit( 'modified-scenegraph', this );        
-      return object;
+    this.updateMaps( object );
+    EventEmitter.emit( 'modified-scenegraph', this );
+    return object;
   }
 
   addObjects( objects : [ THREE.Object3D ], opt : AddParam = _defaultAddParam ) : [ THREE.Object3D ] {
