@@ -734,8 +734,12 @@ class PalletEngine extends PalletElement {
 
         window.addEventListener( 'contextmenu', event => event.preventDefault() );
 
-
+        // render user camera to sub view
         this.drawSubCamera = -1;
+        this.renderPass = new RenderPass( this.sceneGraph, this.camera );
+        this.composer = new EffectComposer( PalletRenderer.Get(), _renderTarget );
+        this.composer.renderToScreen = false;
+        this.composer.addPass( this.renderPass );
 
         this.tweenMgr = new TweenManager();
 
