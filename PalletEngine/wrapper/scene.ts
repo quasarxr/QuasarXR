@@ -11,13 +11,14 @@ type AddParam = {
   searchable : boolean, // get to find function
   raycastable : boolean, // attend raycaster intersection
   browsable? : boolean,
+  attach? : boolean,
 };
 
 type SearchOption = {
 
 };
 
-const _defaultAddParam = { category : 'sceneGraph', searchable : true, raycastable : true, };
+const _defaultAddParam = { category : 'sceneGraph', searchable : true, raycastable : true, browsable : true };
 
 function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
   const groundGroup = new THREE.Group();
@@ -40,7 +41,7 @@ function _createGround( size = 50, segment = 10, division = 50 ) : THREE.Group {
 function _createLight( useShadow : boolean = true ) : THREE.Group {
   const lightGroup = new THREE.Group();
   lightGroup.name = 'default lights';
-  const dirLight = new THREE.DirectionalLight( 0xffffff, 5);
+  const dirLight = new THREE.DirectionalLight( 0xffffff, 5 );
   lightGroup.add( dirLight );
   dirLight.position.set( 0, 5, 0 );
 
@@ -128,25 +129,34 @@ export class PalletScene extends THREE.Scene {
   }
 
   addObject( object, option : AddParam = _defaultAddParam ): THREE.Object3D {
+    function copyParams( data, target ) {
+      target.browsable = option.browsable === undefined ?  data.browsable : option.browsable;
+      target.searchable = option.searchable === undefined ? data.searchable : option.searchable;
+      target.raycastable = option.raycastable === undefined ? data.raycastable : option.raycastable;
+    };
+    function addByOption( group, attach ) {
+      if ( attach ) {
+        group.attach( object );
+      } else {
+        group.add( object );
+      }
+    };
     switch( option.category ) {
       case 'user':
-        this.users.add( object );
-        object.userData.browsable = this.users.userData.browsable;
-        object.userData.searchable = this.users.userData.searchable;
-        object.userData.raycastable = this.users.userData.raycastable;
+        addByOption( this.users, option.attach );
+        //this.users.add( object )
+        copyParams( this.users.userData, object.userData );
         break;
       case 'deco':
-        this.decorators.add( object );        
-        object.userData.browsable = this.decorators.userData.browsable;
-        object.userData.searchable = this.decorators.userData.searchable;
-        object.userData.raycastable = this.decorators.userData.raycastable;
+        //this.decorators.add( object );
+        addByOption( this.decorators, option.attach );
+        copyParams( this.decorators.userData, object.userData );
         break;
       case 'scenegraph':
       default:
-        super.add( object );
-        object.userData.browsable = option.browsable;
-        object.userData.searchable = option.searchable;
-        object.userData.raycastable = option.raycastable;
+        addByOption( this, option.attach );
+        //super.add( object );
+        copyParams( option, object.userData );
         break;
     };
     this.updateMaps( object );

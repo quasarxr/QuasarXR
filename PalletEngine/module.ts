@@ -108,14 +108,6 @@ export type RaycastEvent = {
     uuid : string,
 }
 
-export class Command {
-    command : string;
-    parameter : string;
-    constructor() {
-
-    }
-}
-
 export interface ResizeProps {
     canvas? : HTMLCanvasElement;
     width : number;
@@ -680,7 +672,6 @@ class PalletEngine extends PalletElement {
 
         this.cameraPivot = new THREE.Object3D();
         this.cameraPivot.name = 'Camera Pivot';
-        this.cameraPivot.userData = { raycacastable : false, researchable : false, browsable : false };
         this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
         const listener = new THREE.AudioListener();
         this.camera.add( listener );
@@ -692,8 +683,8 @@ class PalletEngine extends PalletElement {
         }
 
         this.subCameras = [];
-        this.sceneGraph.addObject( this.camera );
-        this.sceneGraph.addObject( this.cameraPivot );
+        this.sceneGraph.addObject( this.camera, { category: 'scenegraph', raycastable : false, searchable : false, browsable : false });
+        this.sceneGraph.addObject( this.cameraPivot, { category: 'scenegraph', raycastable : false, searchable : false, browsable : false } );
 
         this.gltfLoader = new GLTFLoader();
         this.fbxLoader = new FBXLoader();
@@ -823,7 +814,10 @@ class PalletEngine extends PalletElement {
         // system
         EventEmitter.on( 'file-import', ( url ) => {
             this.loadGLTF( url, gltf => {
-                this.sceneGraph.addObject( gltf.scene );
+                gltf.scene.traverse( object => {
+                    object.userData = { category: 'user', searchable: true, raycastable: true, browsable: true };
+                })
+                this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );                
             } );
         } );
 
@@ -982,22 +976,26 @@ class PalletEngine extends PalletElement {
         const lightMaterial1 = new THREE.MeshBasicMaterial({color: 0xcc0000});
         EventEmitter.on( 'create-dirlight', ( data ) => {
             light = new THREE.DirectionalLight( data?.color, data?.intensity );
-            light.name = 'Directional light';
             const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
             const target = new THREE.Mesh( sphereGeometry, lightMaterial1 );
-            mesh.add( light );
             mesh.position.set( 0, 2.5, 0 );
+            mesh.add( light );
             mesh.attach( target );
+            mesh.name = 'Directional Light';
             light.target = target;
+            light.color.setHex( 0x00ff00 );
+            light.intensity = 5;
+            light.userData = { searchable : false, browsable : false, raycastable : false };
+            target.userData = { searchable : false, browsable : false, raycastable : true };
             this.sceneGraph.addObject( mesh, _userAddParam );
         } );
 
         EventEmitter.on( 'create-pointlight', ( data ) => {
             light = new THREE.PointLight( 0xff0000, 100 );
-            light.name = 'Point light';
-            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
-            mesh.add( light );            
-            this.sceneGraph.addObject( mesh, _userAddParam );
+            const helper = new THREE.Mesh( sphereGeometry, lightMaterial );
+            helper.name = 'Point light';
+            helper.add( light );
+            this.sceneGraph.addObject( helper, _userAddParam );
         } );
 
         EventEmitter.on( 'create-spotlight', () => {
@@ -1020,18 +1018,18 @@ class PalletEngine extends PalletElement {
 
         EventEmitter.on( 'create-hemispherelight', () => {
             light = new THREE.HemisphereLight( 0x0000ff, 0xff0000, 100 );
-            light.name = 'Hemisphere light';
             light.color.setHSL( 0.6, 1, 0.6 );
             light.groundColor.setHSL( 0.095, 1, 0.75 );
-            const mesh = new THREE.Mesh( sphereGeometry, lightMaterial );
-            mesh.position.set( 0, 5, 0 );
-            mesh.add( light );
-            this.sceneGraph.addObject( mesh, _userAddParam );
+            const helper = new THREE.Mesh( sphereGeometry, lightMaterial );
+            helper.position.set( 0, 5, 0 );
+            helper.add( light );
+            helper.name = 'Hemisphere light';
+            this.sceneGraph.addObject( helper, _userAddParam );
         } );
 
         EventEmitter.on( 'create-camera', () => {
             const camera = new THREE.PerspectiveCamera();
-            camera.name = 'Perspective camera';
+            camera.name = 'Perspective Camera';
             camera.near = 0.5;
             camera.far = 10;
             camera.aspect = 1.67;
@@ -1052,7 +1050,7 @@ class PalletEngine extends PalletElement {
 
             this.subCameras.push( helper );
             this.sceneGraph.addObject( camera, _userAddParam );
-            this.sceneGraph.addObject( helper, _userAddParam );
+            this.sceneGraph.addObject( helper, { category : 'user', searchable : false, raycastable : true, browsable : false } );
         } );
 
         EventEmitter.on( 'modified-scenegraph', sceneGraph => {

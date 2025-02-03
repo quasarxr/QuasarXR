@@ -217,7 +217,7 @@ export class SceneGraphView implements View {
                     const visible = object.userData.browsable || object === currentData;
                     
                     if ( visible ) {
-                        const i = this.createItem( object, object.children.length > 0 );
+                        const i = this.createItem( object, object.children.length > 0 && object.children.every( value => value.userData.browsable ) );
                         this.itemToModel.set( i, object );
                         this.modelToItem.set( object, i );
                         if ( object.parent ) {
