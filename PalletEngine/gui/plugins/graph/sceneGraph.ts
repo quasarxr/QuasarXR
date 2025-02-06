@@ -127,10 +127,6 @@ export class SceneGraphView implements View {
     private readonly document : Document;
 
     private draggingElement : HTMLElement;
-    private nextSibiling : HTMLElement;
-
-    private dragStartIndex : Number;
-    private dropInsertIndex : Number;
 
     private selectedElement : HTMLElement;
     private itemToChild : WeakMap< HTMLElement, HTMLElement>; // item to under sub division
@@ -181,13 +177,7 @@ export class SceneGraphView implements View {
         } );
         this.controlArea.appendChild( this.controlPreview );
 
-        
-
         this.draggingElement = null;
-        this.nextSibiling = null;
-        
-        this.dragStartIndex = -1;
-        this.dropInsertIndex = -1;
 
         this.itemToChild = new WeakMap();
         this.modelToItem = new WeakMap();
@@ -211,13 +201,13 @@ export class SceneGraphView implements View {
             (async function() {
                 const rootArea = this.document.createElement('div');
                 this.graph.appendChild( rootArea );
-                this.modelToItem.set( currentData, rootArea );
 
                 currentData.traverse( object => {
                     const visible = object.userData.browsable || object === currentData;
-                    
+
                     if ( visible ) {
                         const i = this.createItem( object, object.children.length > 0 && object.children.every( value => value.userData.browsable ) );
+                        
                         this.itemToModel.set( i, object );
                         this.modelToItem.set( object, i );
                         if ( object.parent ) {
@@ -321,92 +311,119 @@ export class SceneGraphView implements View {
             if ( this.draggingElement !== null && wrapper !== this.draggingElement ) {
                 this.draggingElement.classList.remove( 'dragging' );
             }
-            wrapper.classList.add( 'dragging' );
             this.draggingElement = wrapper;
-            this.dragStartIndex = Array.from( this.graph.children ).indexOf( wrapper );
         } );
 
         wrapper.addEventListener( 'mouseup', e => {
             e.stopPropagation();
-            this.selectedElement?.classList.remove( 'selected' );
+            this.selectedElement?.classList.toggle( 'selected' );
             this.selectedElement = wrapper;
-            wrapper.classList.toggle( 'selected' );
-            
-            EventEmitter.emit( 'sceneGraph-update-signal', this.itemToModel.get( wrapper ) );
+            wrapper.classList.toggle( 'selected' );            
+            EventEmitter.emit( 'scenegraph-select', this.itemToModel.get( wrapper ) );
         } );
 
         wrapper.addEventListener( 'dragstart', event => {
+            //event.preventDefault();
+            console.log( 'dragstart : ', event.target );
             event.dataTransfer.effectAllowed = 'move';
+            wrapper.classList.add( 'dragging' );
+            this.draggingElement = wrapper;
         } );
 
         wrapper.addEventListener( 'dragend', event => {
-            event.dataTransfer.dropEffect = 'move';
+            event.preventDefault();
+            this.draggingElement.classList.remove( 'dragging' );
+            this.draggingElement = null;
         } );
 
+        wrapper.addEventListener( 'drop', event => {
+            if ( this.draggingElement === wrapper ) return;
+            event.preventDefault();
+            console.log( 'drop : ', event.target, this.draggingElement === event.target );
+
+            const drag = this.itemToModel.get( this.draggingElement );
+            const target = this.itemToModel.get( wrapper );
+            EventEmitter.emit( 'scenegraph-drag-drop', { 'drop' : target , 'drag' : drag } );
+        } );
+
+        wrapper.addEventListener('dragover', event => {
+            if ( this.draggingElement === wrapper ) return;
+            event.preventDefault();
+            wrapper.classList.add( 'dragover' );
+            //wrapper.appendChild( event.target as HTMLElement );
+        } );
+
+        wrapper.addEventListener('dragleave', event => {
+            if ( this.draggingElement === wrapper ) return;
+            event.preventDefault();
+            wrapper.classList.remove( 'dragover' );
+            //wrapper.appendChild( event.target as HTMLElement );
+        } );
+        
         return wrapper;
     }
 
     assignEvents( callbacks : Map<string, SceneCallback> ) {
-        this.graph.addEventListener( 'click', ev => {
-            ev.stopPropagation();
-            if ( this.draggingElement ) {
-                this.draggingElement.classList.remove( 'dragging' );                
-                this.draggingElement = null;
-            }
+        // this.graph.addEventListener( 'click', ev => {
+        //     ev.stopPropagation();
+        //     if ( this.draggingElement ) {
+        //         this.draggingElement.classList.remove( 'dragging' );                
+        //         this.draggingElement = null;
+        //     }
 
-            if ( ev.target === this.graph ) {
-                this.deSelectItem();
-            }
-        } );
+        //     if ( ev.target === this.graph ) {
+        //         this.deSelectItem();
+        //     }
+        // } );
 
-        this.graph.addEventListener( 'dragover', e => {
-            e.preventDefault();
+        // this.graph.addEventListener( 'dragover', e => {
+        //     e.preventDefault();
 
-            let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
-            let nextItem = itemSibilings.find( sibiling => {
-                const sibilingElement = sibiling as HTMLElement;
-                const containerLocalTop = this.graph.getBoundingClientRect().top;
-                const sibilingClientTop = sibilingElement.getBoundingClientRect().top
-                const sibilingHalfHeight = sibilingElement.offsetHeight * 0.5;
-                return ( e.clientY - containerLocalTop ) < ( sibilingClientTop - containerLocalTop + sibilingHalfHeight )
-            } ) as HTMLElement;
+        //     let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
+        //     let nextItem = itemSibilings.find( sibiling => {
+        //         const sibilingElement = sibiling as HTMLElement;
+        //         const containerLocalTop = this.graph.getBoundingClientRect().top;
+        //         const sibilingClientTop = sibilingElement.getBoundingClientRect().top
+        //         const sibilingHalfHeight = sibilingElement.offsetHeight * 0.5;
+        //         return ( e.clientY - containerLocalTop ) < ( sibilingClientTop - containerLocalTop + sibilingHalfHeight )
+        //     } ) as HTMLElement;
 
-            itemSibilings.forEach( sibiling => {
-                (sibiling as HTMLElement).classList.remove('nextItem');
-            } );
+        //     itemSibilings.forEach( sibiling => {
+        //         (sibiling as HTMLElement).classList.remove('nextItem');
+        //     } );
 
-            if ( nextItem ) {
-                nextItem.classList.add('nextItem');
-            }
-            this.nextSibiling = nextItem;
-        } );
+        //     if ( nextItem ) {
+        //         nextItem.classList.add('nextItem');
+        //     }
+        //     this.nextSibiling = nextItem;
+        // } );
 
-        this.graph.addEventListener( 'drop', e => {
-            e.preventDefault();
-            let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
-            itemSibilings.forEach( sibiling => {
-                (sibiling as HTMLElement).classList.remove('nextItem');
-            } );
+        // this.graph.addEventListener( 'drop', e => {
+        //     e.preventDefault();
+        //     let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
+        //     itemSibilings.forEach( sibiling => {
+        //         (sibiling as HTMLElement).classList.remove('nextItem');
+        //     } );
 
-            if ( this.draggingElement ) {
-                if ( this.nextSibiling ) {
-                    this.graph.insertBefore( this.draggingElement, this.nextSibiling );
-                    this.dropInsertIndex = Array.from( this.graph.children ).indexOf( this.nextSibiling ) - 1;
-                } else {                    
-                    this.graph.appendChild( this.draggingElement );
-                    this.dropInsertIndex = this.graph.children.length - 1;
-                }
-                this.draggingElement.classList.remove( 'dragging' );
-                this.draggingElement = null;
-                this.nextSibiling = null;
+        //     if ( this.draggingElement ) {
+        //         if ( this.nextSibiling ) {
+        //             this.graph.insertBefore( this.draggingElement, this.nextSibiling );
+        //             this.dropInsertIndex = Array.from( this.graph.children ).indexOf( this.nextSibiling ) - 1;
+        //         } else {                    
+        //             this.graph.appendChild( this.draggingElement );
+        //             this.dropInsertIndex = this.graph.children.length - 1;
+        //         }
+        //         this.draggingElement.classList.remove( 'dragging' );
+        //         this.draggingElement = null;
+        //         this.nextSibiling = null;
 
-                callbacks.get(CB_KEY.MODELUPDATE)?.func( this.dragStartIndex, this.dropInsertIndex );
+        //         //callbacks.get(CB_KEY.MODELUPDATE)?.func( this.dragStartIndex, this.dropInsertIndex );
 
-            }
+        //     }
 
-            this.dragStartIndex = -1;
-            this.dropInsertIndex = -1;
-        } );
+        //     this.dragStartIndex = -1;
+        //     this.dropInsertIndex = -1;
+        // } );
 
         this.graph.addEventListener( 'keydown', event => {
             switch( event.key ) {
@@ -417,6 +434,10 @@ export class SceneGraphView implements View {
                     console.log( 'shift' );
                     break;
             }
+        } );
+
+        EventEmitter.on( 'scenegraph-selection-update', model => {
+            this.selectItem( this.modelToItem.get( model ) );
         } );
     }
 
@@ -432,12 +453,11 @@ export class SceneGraphView implements View {
     }
 
     selectItem( element : HTMLElement ) {
-        if ( element == undefined || element == null ) console.error( 'element has to passed with parameter' );
         if ( this.selectedElement ) {
             this.deSelectItem();
-            this.selectedElement = element;
         }
-        if ( ! element.classList.contains( 'selected' ) ) {
+        if ( element ) {
+            this.selectedElement = element;
             element.classList.add( 'selected' );
         }
     }
@@ -526,10 +546,9 @@ export const SceneGraphBundle : TpPluginBundle = {
     .tp-scene-graphv_item.dragging {
         background: yellow;
     }
-    .tp-scene-graphv_item.nextItem {
+    .tp-scene-graphv_item.dragover {
         background: red;
-        margin-top : 20px;
-    }        
+    }
     .tp-scene-graphv_item.selected {
         background: rgb( 0, 150, 90 );
     }

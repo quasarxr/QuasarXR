@@ -152,7 +152,6 @@ class DesktopIRC extends InteractionController {
     shiftPressed : boolean;
     cursorStart : THREE.Vector2;
     cursorEnd : THREE.Vector2;
-    targetMaterial : THREE.Material;
     isDrawing : boolean;
     onLeftClickCallbacks : InterSectionCallback[];
 
@@ -164,7 +163,6 @@ class DesktopIRC extends InteractionController {
         this.selectionHelper = new SelectionHelper( PalletRenderer.Get(), 'selectBox' );
         this.selectionHelper.element.classList.add('disabled');
         this.shiftPressed = false;
-        this.targetMaterial = null;
         
         this.cursorStart = new THREE.Vector2();
         this.cursorEnd = new THREE.Vector2();
@@ -426,93 +424,134 @@ class DesktopIRC extends InteractionController {
     }
     
     onIntersection( hits : Array<any> ) {
-        let eventObject = null;
-        const hitMeshes = hits.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && 
+
+        this.pickUp( hits )
+            .success( () => {
+                this.updateGUI();
+            } )
+            .fail( () => {
+                this.deselect();
+                this.updateGUI();
+            } );
+
+        this.executeCallback();
+
+    }
+
+    distributor( intersects : [ any ] ) {
+        let res = undefined;
+        const group = findParentByType( intersects[ 0 ].object, THREE.Group );
+        if ( /*group && group.name !== 'system'*/ false ) {
+            // Code written to ensure that the parent is selected when the mesh inside the Group is selected when loading the animation mesh.
+            // Enable after scene refactoring done.
+            if ( group === this.context ) {
+                // TODO select children
+                res = intersects[0].object;
+            } else {
+                res = group;
+            }
+        } else if ( intersects[0].object.isHelper ) {
+            res = intersects[0].object.light;
+        } else if ( intersects[0].object.type === 'CameraHelper' ) {
+           res = intersects[0].object.userData.camera;
+        } else {
+            res = intersects[0].object;
+        }
+        return res;
+    }
+
+    pickUp( inputs ) {
+
+        const res = {
+            status : undefined,
+            success: cb => { 
+                if ( res.status === true ) cb();
+                return res;
+            },
+            fail: cb => {
+                if ( res.status === false ) cb();
+                return res;
+            }
+        };
+
+        const hitMeshes = inputs.filter( h => h.object.isMesh && !findParentByType( h.object, TransformControls ) && 
             !findParentByType( h.object, TransformControlsGizmo ) && 
             !h.object.isGround && 
             !h.object.isTransformControlsPlane );
-        
+
         if ( hitMeshes.length > 0 ) { // prevents any action to ground
-            this.controls.enabled = true;
-            const group = findParentByType( hitMeshes[ 0 ].object, THREE.Group );
-            this.targetMaterial = null;
-            if ( /*group && group.name !== 'system'*/ false ) {
-                // Code written to ensure that the parent is selected when the mesh inside the Group is selected when loading the animation mesh.
-                // Enable after scene refactoring done.
-                if ( group === this.context ) {
-                    // TODO select children
-                    this.controls.attach( hitMeshes[ 0 ].object );
-                    this.context = hitMeshes[ 0 ].object;
-                    eventObject = hitMeshes[ 0 ].object;
-                } else {
-                    this.controls.attach( group );
-                    this.context = group;
-                    eventObject = group;
-                }
-            } else if ( hitMeshes[0].object.isHelper ) {
-                this.controls.attach( hitMeshes[0].object.light );
-                this.context = hitMeshes[0].object.light;
-            } else if ( hitMeshes[0].object.type === 'CameraHelper' ) {
-                this.controls.attach( hitMeshes[0].object.userData.camera );
-                this.context = hitMeshes[0].object.userData.camera;
-            } else {
-                const pickedObject = hitMeshes[0].object;
-                eventObject = pickedObject;
-                this.controls.attach( pickedObject );
-                this.context = hitMeshes[0].object;
-            }
+            
+            const target = this.distributor( hitMeshes );
+            this.select( target );
+            res.status = true;
+        } else {
+            res.status = false;
+        }
 
-            if ( this.context ) {
-                const p = this.context.position;
-                EventEmitter.emit('modify-position-listen', { x: p.x, y : p.y, z : p.z } );   
-                const r = this.context.rotation;               
-                EventEmitter.emit('modify-rotation-listen', { x: r.x, y : r.y, z : r.z } );
-                const s = this.context.scale;
-                EventEmitter.emit('modify-scale-listen', { x: s.x, y : s.y, z : s.z } );
+        return res;
+    }
+
+    select( object ) {
+        if ( object.isScene ) return;
+
+        this.controls.enabled = true;
+        this.controls.attach( object );
+        this.context = object;
+    }
+
+    deselect() {
+        this.controls.detach();
+        this.controls.enabled = false;
+        this.controls.setMode( 'translate' );
+        this.context = null;
+    }
+
+    updateGUI() {
+        if ( this.context ) {
+            const p = this.context.position;
+            EventEmitter.emit('modify-position-listen', { x: p.x, y : p.y, z : p.z } );   
+            const r = this.context.rotation;               
+            EventEmitter.emit('modify-rotation-listen', { x: r.x, y : r.y, z : r.z } );
+            const s = this.context.scale;
+            EventEmitter.emit('modify-scale-listen', { x: s.x, y : s.y, z : s.z } );
+            
+            if ( this.context.isMesh && this.context.material ) {
+                const diffuse = this.context.material.map ? ImageUtils.getDataURL(this.context.material.map.image) : undefined;
+                const normal = this.context.material.normalMap ? ImageUtils.getDataURL(this.context.material.normalMap.image) : undefined;
+                const roughness = this.context.material.roughnessMap ? ImageUtils.getDataURL(this.context.material.roughnessMap.image) : undefined;
+                const metalness = this.context.material.metalnessMap ? ImageUtils.getDataURL(this.context.material.metalnessMap.image) : undefined;
+                const specular = this.context.material.specularMap ? ImageUtils.getDataURL(this.context.material.specularMap.image) : undefined;
                 
-                if ( this.context.isMesh && this.context.material ) {
-                    const diffuse = this.context.material.map ? ImageUtils.getDataURL(this.context.material.map.image) : undefined;
-                    const normal = this.context.material.normalMap ? ImageUtils.getDataURL(this.context.material.normalMap.image) : undefined;
-                    const roughness = this.context.material.roughnessMap ? ImageUtils.getDataURL(this.context.material.roughnessMap.image) : undefined;
-                    const metalness = this.context.material.metalnessMap ? ImageUtils.getDataURL(this.context.material.metalnessMap.image) : undefined;
-                    const specular = this.context.material.specularMap ? ImageUtils.getDataURL(this.context.material.specularMap.image) : undefined;
-                    
-                    EventEmitter.emit( 'mat-diffuse-listen', diffuse );
-                    EventEmitter.emit( 'mat-normal-listen', normal );
-                    EventEmitter.emit( 'mat-metalic-listen', metalness );
-                    EventEmitter.emit( 'mat-roughness-listen', roughness );
-                    EventEmitter.emit( 'mat-specular-listen', specular );
-                } else {                    
-                    EventEmitter.emit( 'mat-diffuse-listen', undefined );
-                    EventEmitter.emit( 'mat-normal-listen', undefined );
-                    EventEmitter.emit( 'mat-metalic-listen', undefined );
-                    EventEmitter.emit( 'mat-roughness-listen', undefined );
-                    EventEmitter.emit( 'mat-specular-listen', undefined );
+                EventEmitter.emit( 'mat-diffuse-listen', diffuse );
+                EventEmitter.emit( 'mat-normal-listen', normal );
+                EventEmitter.emit( 'mat-metalic-listen', metalness );
+                EventEmitter.emit( 'mat-roughness-listen', roughness );
+                EventEmitter.emit( 'mat-specular-listen', specular );
+            } else {                    
+                EventEmitter.emit( 'mat-diffuse-listen', undefined );
+                EventEmitter.emit( 'mat-normal-listen', undefined );
+                EventEmitter.emit( 'mat-metalic-listen', undefined );
+                EventEmitter.emit( 'mat-roughness-listen', undefined );
+                EventEmitter.emit( 'mat-specular-listen', undefined );
+            }
+            
+            // enter only object3d
+            this.context.userData?.events?.forEach( event => {
+                if ( event.trigger == 'click' ) {
+                    event.handler();
                 }
+            } );
 
-            }
-        } else {                
-            this.controls.detach();
-            this.controls.enabled = false;
-            this.controls.setMode( 'translate' );
-            this.context = null;
+            EventEmitter.emit( 'tweenGraph-update', this.context.userData?.tweens );
+            EventEmitter.emit( 'scenegraph-selection-update', this.context );
+        } else {            
+            EventEmitter.emit( 'tweenGraph-update', null );
+            EventEmitter.emit( 'scenegraph-selection-update', null );
         }
+    }
+
+    executeCallback() {
         this.onLeftClickCallbacks.map( f => f( { object : this.context } ) );
-
-        // enter only object3d
-        if ( eventObject ) { 
-            if ( eventObject.userData.events ) {
-                eventObject.userData.events.forEach( event => {
-                    if ( event.trigger == 'click' ) {
-                       event.handler();
-                    }
-                } );
-            }
-
-            if ( eventObject.userData.tweens ) {
-                EventEmitter.emit( 'tweenGraph-update', eventObject.userData.tweens );
-            }            
-        }
     }
 
     createControls( camera, canvas ) {
@@ -1053,7 +1092,20 @@ class PalletEngine extends PalletElement {
             this.sceneGraph.addObject( helper, { category : 'user', searchable : false, raycastable : true, browsable : false } );
         } );
 
+        EventEmitter.on( 'scenegraph-select', object => {
+            controller.deselect();
+            controller.select( object );
+            EventEmitter.emit( 'scenegraph-selection-update', object );
+        } );
+
         EventEmitter.on( 'modified-scenegraph', sceneGraph => {
+            this.gui?.sceneGraph?.update( this.sceneGraph );
+        } );
+
+        EventEmitter.on( 'scenegraph-drag-drop', data => {
+            const parent = data.drop as THREE.Object3D;
+            const child = data.drag as THREE.Object3D;
+            parent.attach( child );
             this.gui?.sceneGraph?.update( this.sceneGraph );
         } );
         
