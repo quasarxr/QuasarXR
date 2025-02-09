@@ -14,8 +14,6 @@ import {
 
 import EventEmitter from '../../event';
 
-enum CB_KEY { ADD = "add", REMOVE = "remove", PREVIEW = "preview", MODELUPDATE = 'modelUpdate' };
-
 const SVG_DOWN = '<svg width="21" height="21" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">\n' +
   '<path transform="translate( -2, 0 ) rotate( 0, 12, 12 )" d="M8 10L11.8665 14L16 10" stroke="white" stroke-linecap="round" stroke-linejoin="round"/>\n' +
   '</svg>\n';
@@ -40,22 +38,6 @@ export class SceneGraphApi extends BladeApi<SceneGraphBladeController> {
         this.controller.viewUpdate( data );
     }
 
-    private setCallback( key, callback ) {
-        return this.controller.callbackMap.get( key ).func = callback;
-    }
-
-    public onUpdateModel( callback ) {
-        this.setCallback( CB_KEY.MODELUPDATE, callback );
-    }
-
-    public onSceneAdd( callback ) {
-        this.setCallback( CB_KEY.ADD, callback );
-    }
-
-    public onSceneRemove( callback ) {
-        this.setCallback( CB_KEY.REMOVE, callback );
-    }
-
     public updateName( name : string ) {
         this.controller.updateName( name );
     }
@@ -75,7 +57,6 @@ type SceneCallback = { func : ( ...args : any [] ) => void }
 
 export class SceneGraphBladeController extends BladeController<SceneGraphView> {
 
-    callbackMap : Map<string, SceneCallback>;
     modelAddCallback : SceneCallback;
     modelUpdateCallback : SceneCallback;
 
@@ -88,12 +69,6 @@ export class SceneGraphBladeController extends BladeController<SceneGraphView> {
             viewProps : config.viewProps,
         }
         super( param );
-
-        this.callbackMap = new Map<string, SceneCallback>();
-        Object.values( CB_KEY ).forEach( cbName => {
-            this.callbackMap.set( cbName, { func: undefined } );
-        } )
-        this.assignViewEvents();
     }
 
     public viewUpdate( data : any ) {
@@ -111,10 +86,6 @@ export class SceneGraphBladeController extends BladeController<SceneGraphView> {
     public get cursorIndex() {
         return this.view.cursorIndex;
     }
-
-    private assignViewEvents() {
-        this.view.assignEvents( this.callbackMap );
-    }
 }
 
 interface ViewConfig {
@@ -122,6 +93,109 @@ interface ViewConfig {
 }
 
 const _className = ClassName('scene-graph');
+
+class GraphItem extends HTMLDivElement {
+    
+    data : any;
+    hasChildren : boolean;
+    expandButton : HTMLElement;
+    document : Document;
+
+    onSelect : Function;
+    onExpanded : Function;
+    expandDiv : HTMLDivElement;
+
+    constructor( document, data ) {
+        super();
+        this.document = document;
+        this.data = data;
+        this.draggable = true;
+        this.hasChildren = false;
+    }
+
+    initialize( data ) {
+
+        this.style.display = 'flex';
+        this.classList.add( _className( 'item' ) );
+
+        this.expandDiv = this.document.createElement( 'div' );
+        this.expandDiv.classList.add( _className('child-area') );
+
+        const text = this.document.createElement( 'div' );
+        text.textContent = data['name'] || data['type'];
+        text.classList.add( _className( 'item-text' ) );
+        this.appendChild( text );
+
+    }
+
+    createButtons( show : boolean ) {
+        this.expandButton = this.document.createElement( 'div' );
+        this.expandButton.innerHTML = SVG_RIGHT;
+        this.expandButton.classList.add( _className( 'item-expand' ) );
+        //expandButton.classList.add( 'expanded' );
+
+        this.expandButton.addEventListener( 'mousedown', e => {
+            e.stopPropagation();
+            this.expandButton.classList.add( 'click' );
+        } );
+
+        this.expandButton.addEventListener( 'mouseover', e => {
+            e.stopPropagation();
+            this.expandButton.classList.add( 'hover' );
+        } );
+
+        this.expandButton.addEventListener( 'mouseleave', e => {
+            e.stopPropagation();
+            this.expandButton.classList.remove( 'hover' );
+        } );
+
+        this.expandButton.addEventListener( 'mouseup', e => {
+            e.stopPropagation();
+            this.expandDiv.classList.toggle( 'expanded' );
+            this.expandButton.classList.remove( 'click' );
+            this.expandButton.classList.toggle( 'expanded' );
+            
+            if ( this.expandButton.classList.contains( 'expanded' ) ) {
+                this.expandButton.innerHTML = SVG_DOWN;
+            } else {
+                this.expandButton.innerHTML = SVG_RIGHT;
+            }
+        } );
+
+        this.appendChild( this.expandButton );
+
+        this.ExpandButton = show;
+    }
+
+    set ExpandButton( value : boolean ) {
+        this.expandButton.style.visibility = value ? 'visible' : 'hidden';
+    }
+
+    insertItem( item : GraphItem ) {
+        this.expandDiv.appendChild( item );
+        this.ExpandButton = true;
+    }
+
+    removeItem( item : GraphItem ) {
+        if ( this.expandDiv.contains( item ) ) {
+            this.expandDiv.removeChild( item );
+        }
+    }
+
+    get expanded() {
+        return this.expandDiv.classList.contains( 'expanded' );
+    }
+
+    set expanded( value ) {
+        if ( value ) {
+            this.expandDiv.classList.add( 'expanded' );
+        } else {
+            this.expandDiv.classList.remove( 'expanded' );
+        }
+    }
+}
+
+customElements.define('scenegrpah-item', GraphItem );
 
 export class SceneGraphView implements View {
     private readonly document : Document;
@@ -136,10 +210,10 @@ export class SceneGraphView implements View {
     public readonly element : HTMLElement;
     public readonly graph : HTMLElement;
 
-    public readonly controlArea : HTMLElement;
-    public readonly controlAdd : HTMLElement;
-    public readonly controlRemove : HTMLElement;
-    public readonly controlPreview : HTMLElement;
+    // public readonly controlArea : HTMLElement;
+    // public readonly controlAdd : HTMLElement;
+    // public readonly controlRemove : HTMLElement;
+    // public readonly controlPreview : HTMLElement;
 
     constructor( doc : Document, config : ViewConfig ) {
         this.document = doc;
@@ -151,31 +225,6 @@ export class SceneGraphView implements View {
         this.graph.classList.add(_className('g'));
         
         this.element.appendChild( this.graph );
-
-        this.controlArea = doc.createElement( 'div' );
-        this.controlArea.classList.add( _className('control') );
-        this.element.appendChild( this.controlArea );
-
-        this.controlAdd = doc.createElement( 'div' );
-        this.controlAdd.classList.add( _className( 'btn' ) );
-        this.controlAdd.textContent = 'Add';
-        this.controlAdd.addEventListener( 'click', event => {
-        } );
-        this.controlArea.appendChild( this.controlAdd );
-        
-        this.controlRemove = doc.createElement( 'btn' );
-        this.controlRemove.classList.add( _className( 'btn' ) );
-        this.controlRemove.textContent = 'Remove';
-        this.controlRemove.addEventListener( 'click', event => {
-        } );
-        this.controlArea.appendChild( this.controlRemove );
-
-        this.controlPreview = doc.createElement( 'btn' );
-        this.controlPreview.classList.add( _className( 'btn' ) );
-        this.controlPreview.textContent = 'Preview';
-        this.controlPreview.addEventListener( 'click', event => {
-        } );
-        this.controlArea.appendChild( this.controlPreview );
 
         this.draggingElement = null;
 
@@ -364,66 +413,6 @@ export class SceneGraphView implements View {
     }
 
     assignEvents( callbacks : Map<string, SceneCallback> ) {
-        // this.graph.addEventListener( 'click', ev => {
-        //     ev.stopPropagation();
-        //     if ( this.draggingElement ) {
-        //         this.draggingElement.classList.remove( 'dragging' );                
-        //         this.draggingElement = null;
-        //     }
-
-        //     if ( ev.target === this.graph ) {
-        //         this.deSelectItem();
-        //     }
-        // } );
-
-        // this.graph.addEventListener( 'dragover', e => {
-        //     e.preventDefault();
-
-        //     let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
-        //     let nextItem = itemSibilings.find( sibiling => {
-        //         const sibilingElement = sibiling as HTMLElement;
-        //         const containerLocalTop = this.graph.getBoundingClientRect().top;
-        //         const sibilingClientTop = sibilingElement.getBoundingClientRect().top
-        //         const sibilingHalfHeight = sibilingElement.offsetHeight * 0.5;
-        //         return ( e.clientY - containerLocalTop ) < ( sibilingClientTop - containerLocalTop + sibilingHalfHeight )
-        //     } ) as HTMLElement;
-
-        //     itemSibilings.forEach( sibiling => {
-        //         (sibiling as HTMLElement).classList.remove('nextItem');
-        //     } );
-
-        //     if ( nextItem ) {
-        //         nextItem.classList.add('nextItem');
-        //     }
-        //     this.nextSibiling = nextItem;
-        // } );
-
-        // this.graph.addEventListener( 'drop', e => {
-        //     e.preventDefault();
-        //     let itemSibilings = Array.from( this.document.querySelectorAll('.tp-tween-graphv_item:not(.dragging') );
-        //     itemSibilings.forEach( sibiling => {
-        //         (sibiling as HTMLElement).classList.remove('nextItem');
-        //     } );
-
-        //     if ( this.draggingElement ) {
-        //         if ( this.nextSibiling ) {
-        //             this.graph.insertBefore( this.draggingElement, this.nextSibiling );
-        //             this.dropInsertIndex = Array.from( this.graph.children ).indexOf( this.nextSibiling ) - 1;
-        //         } else {                    
-        //             this.graph.appendChild( this.draggingElement );
-        //             this.dropInsertIndex = this.graph.children.length - 1;
-        //         }
-        //         this.draggingElement.classList.remove( 'dragging' );
-        //         this.draggingElement = null;
-        //         this.nextSibiling = null;
-
-        //         //callbacks.get(CB_KEY.MODELUPDATE)?.func( this.dragStartIndex, this.dropInsertIndex );
-
-        //     }
-
-        //     this.dragStartIndex = -1;
-        //     this.dropInsertIndex = -1;
-        // } );
 
         this.graph.addEventListener( 'keydown', event => {
             switch( event.key ) {
