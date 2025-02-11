@@ -11,6 +11,7 @@ import { TweenGraphBundle, TweenGraphApi } from './plugins/graph/tweenGraph';
 import { SceneGraphBundle, SceneGraphApi } from './plugins/graph/sceneGraph';
 import { AuthenticatorBundle ,AuthenticatorApi } from './plugins/auth';
 
+const isDev = process.env.NODE_ENV === 'development';
 
 type GuiComponent = FolderApi | ButtonApi | InputBindingApi<any> | TabPageApi | TabApi | BladeApi ;
 const _GUI_IDs = [ 'property-panel', 'oncanvas-menu', 'top-menu', 'footer-menu', 'scene-graph', 'sub-view' ];
@@ -57,7 +58,7 @@ const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ),
         bakeGUIData( 'Export', 'file-export', 'button' ),
-        bakeGUIData( 'Storage', 'system-storage', 'button' ),
+        bakeGUIData( 'Storage', 'system-storage', 'button', null, { disabled: !isDev } ), // only development test
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
         bakeGUIData( 'Sphere', 'create-sphere', 'button' ),
@@ -383,7 +384,8 @@ export default class PalletGUI {
 
                 picker.on( emitFunction );
             } else if ( el.cat === 'button' ) {
-                const btn = fileFolder.addButton( { title: el.title } );
+                const btn = fileFolder.addButton( { title: el.title } );                
+                btn.disabled = el.option?.disabled;
                 this.connectAction( btn, el.emit );
             }
         } );
