@@ -492,7 +492,10 @@ class DesktopIRC extends InteractionController {
     }
 
     select( object ) {
-        if ( object.isScene ) return;
+        if ( object === undefined || object.isScene ) { 
+            console.warn( `${object.name || object.type} is not selectable` );
+            return;
+        } 
 
         this.controls.enabled = true;
         this.controls.attach( object );
@@ -1095,7 +1098,7 @@ class PalletEngine extends PalletElement {
         EventEmitter.on( 'scenegraph-select', object => {
             controller.deselect();
             controller.select( object );
-            EventEmitter.emit( 'scenegraph-selection-update', object );
+            controller.updateGUI();
         } );
 
         EventEmitter.on( 'modified-scenegraph', sceneGraph => {
