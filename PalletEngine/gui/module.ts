@@ -58,6 +58,7 @@ const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ),
         bakeGUIData( 'Export', 'file-export', 'button' ),
+        bakeGUIData( 'Google Drive', 'file-drive', 'button' ),
         bakeGUIData( 'Storage', 'system-storage', 'button', null, { disabled: !isDev } ), // only development test
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
@@ -610,6 +611,14 @@ export default class PalletGUI {
 
     actionFileImport( cb : Function ) {
         fileSelector( cb );
+    }
+
+    actionFileExport( cb : Function ) {
+        if ( cb ) cb();
+    }
+
+    actionFileDrive( cb : Function ) {
+        if ( cb ) cb();
     }
 
     actionMatDiffuse( cb : Function ) {

@@ -855,17 +855,29 @@ class PalletEngine extends PalletElement {
 
         // system
         EventEmitter.on( 'file-import', ( url ) => {
-            this.loadGLTF( url, gltf => {
+            // this.loadGLTF( url, gltf => {
+            //     gltf.scene.traverse( object => {
+            //         object.userData = { category: 'user', searchable: true, raycastable: true, browsable: true };
+            //     })
+            //     this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );                
+            // } );
+            FileUtil.LoadCustomGLB( url ).then( gltf => {
                 gltf.scene.traverse( object => {
                     object.userData = { category: 'user', searchable: true, raycastable: true, browsable: true };
                 })
-                this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );                
+                this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );
             } );
         } );
 
-        EventEmitter.on( 'file-export', () => {            
-            this.exportGLTF().then( gltf => {
-                FileUtil.DownloadFile( 'scene.glb', gltf );
+        EventEmitter.on( 'file-export', () => {    
+            console.log( '!!' );        
+            // this.exportGLTF().then( gltf => {
+            //     // change file name to title
+            //     FileUtil.DownloadFile( 'scene.glb', gltf );
+            // } );
+
+            FileUtil.SaveCustomGLB( this ).then( flag => {
+                console.log( flag );
             } );
         } );
 
@@ -1173,7 +1185,7 @@ class PalletEngine extends PalletElement {
         } );
 
         EventEmitter.on( 'tweenGraph-update', data => {
-            this.gui.tweenGraph.update( data );
+            this.gui?.tweenGraph.update( data );
         } );
 
         EventEmitter.on( 'tweenGraph-update-signal', index => {
@@ -1360,7 +1372,7 @@ class PalletEngine extends PalletElement {
             exporter.parse( tempObject3D,  gltf => {
                 resolve( gltf );
                 //recovery to the scene
-                this.sceneGraph.addObject( object, _userAddParam );
+                this.sceneGraph.addObject( object,  { category : 'scenegraph', searchable : true, raycastable : true, browsable : true } );
             }, { binary : true, includeCustomExtensions : true } );
         } );
 
