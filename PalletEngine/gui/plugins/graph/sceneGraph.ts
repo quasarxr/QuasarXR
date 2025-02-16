@@ -180,6 +180,10 @@ class GraphItem extends HTMLDivElement {
         return this.expandButton;
     }
 
+    get parentItem() : GraphItem {
+        return this.parentElement?.parentElement as GraphItem || null;
+    }
+
     set ExpandButton( value : boolean ) {
         this.expandButton.style.visibility = value ? 'visible' : 'hidden';
     }
@@ -208,8 +212,10 @@ class GraphItem extends HTMLDivElement {
 
     set expanded( value ) {
         if ( value ) {
+            this.expandButton.innerHTML = SVG_DOWN;
             this.expandDiv.classList.add( 'expanded' );
         } else {
+            this.expandButton.innerHTML = SVG_RIGHT;
             this.expandDiv.classList.remove( 'expanded' );
         }
     }
@@ -378,6 +384,13 @@ export class SceneGraphView implements View {
                     currentItem.select = true;
                 }
                 _selectedItem = currentItem;
+
+                let iter = currentItem.parentItem;
+                while( iter ) {
+                    console.log( iter );
+                    iter.expanded = true;
+                    iter = iter.parentItem;
+                }
             }
         } );
     }
