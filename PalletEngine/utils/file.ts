@@ -8,6 +8,192 @@ interface UploadParam {
     file : any,
 }
 
+type exportOption = {
+    includeAll? : boolean
+}
+
+type importCallback = ( gltf ) => void;
+type exportCallback = ( res ) => void;
+
+const _gltfHeaderSize = 12;
+const _gltfMagic = 0x46546C67; // "glTF" in ASCII
+const _quasarMagic = 0x43555354; // "CUST" in ASCII
+
+function _readGLBHeader( buffer : DataView ) {        
+    const magic = buffer.getUint32( 0, true );  // glTF
+    const version = buffer.getUint32( 4, true );  // 2
+    const length = buffer.getUint32( 8, true ); // file total size
+    return { magic, version, length };
+};
+
+class PalletGLB { 
+    // quasarxr default file format
+    // insert custom chunk header to end of file
+    exporter : GLTFExporter;
+    importer : GLTFLoader;
+    url : string;
+
+    constructor( url ) {
+        this.url = url;
+    }
+
+    public writeHeader( gltf, customData ) {
+        if ( gltf instanceof ArrayBuffer ) {
+            const glbView = new DataView( gltf );
+
+            // glb header (12 Bytes)
+            const header = _readGLBHeader( glbView );    
+            if ( header.magic !== _gltfMagic ) {
+                throw new Error("Invalid GLB file");
+            }
+    
+            // insert custom header
+            const customText = new TextEncoder().encode( customData );
+            const customChunkSize = customText.byteLength;
+            const newChunkType = _quasarMagic; // "CUST" in ASCII
+    
+            const newGLB = new Uint8Array( length + 8 + customChunkSize );
+            newGLB.set( new Uint8Array( gltf ), 0 );
+    
+            const newView = new DataView( newGLB.buffer );
+            newView.setUint32( length, customChunkSize, true );
+            newView.setUint32( length + 4, newChunkType, true );
+            newGLB.set( customText, length + 8 );
+    
+            // 새 크기 할당
+            newView.setUint32( 8, newGLB.byteLength, true );
+            return newGLB;
+        }
+        
+        return null;
+    }
+
+    public async readHeader( url ) {
+        const res = await fetch( url );
+        const glbBuffer = await res.arrayBuffer();
+        const glbView = new DataView( glbBuffer );
+
+        const glbHeader = _readGLBHeader( glbView );
+        
+        if ( glbHeader.magic !== 0x46546C67 ) {
+            throw new Error("Invalid GLB file");
+        }
+
+        let offset = _gltfHeaderSize; // glb 헤더 이후 데이터 시작
+
+        // 각 chunk 를 돌며 "CUST" 타입인지 확인
+        while (offset < length) {
+            const chunkSize = glbView.getUint32(offset, true);
+            offset += 4;
+            const chunkType = glbView.getUint32(offset, true);
+            offset += 4;
+    
+            if (chunkType === 0x43555354) { // "CUST" in ASCII
+                const customData = new TextDecoder().decode( new Uint8Array( glbBuffer, offset, chunkSize ) );
+                console.log("✅ 커스텀 헤더 데이터:", customData);
+                return customData;
+            }
+    
+            offset += chunkSize; // 다음 Chunk 위치로 이동
+        }
+        console.log("❌ 커스텀 Chunk를 찾을 수 없습니다.");
+        return null;
+    }
+
+    public import( url, callback : importCallback ) : Promise<any> {
+        return new Promise( ( resolve, reject ) => {
+            try {
+                this.readHeader( url ).then( header => {
+                    const loader = new GLTFLoader();
+                    loader.load( url, gltf => {                        
+                        if ( header ) {
+                            // load quasarxr data
+                        } else {
+                            // load normal glb
+                        }
+                        resolve( gltf );
+                        callback( gltf );
+                    } );
+                } );
+            } catch ( err ) {
+                console.error( err );
+            }
+        } );
+    }
+
+    export( fileName, object, callback : exportCallback ) {
+        this.exporter.parse( object, gltf => {
+            const newBuffer = this.writeHeader( gltf, "QuasarXR-GLB" );
+            FileUtil.DownloadFile( fileName, newBuffer, 'model/gltf-binary' );
+            callback( newBuffer );
+        }, error => {
+            throw Error( "Failed export glb" );
+        }, { binary : true, includeCustomExtensions : true } );
+    }
+
+    
+    Save( engine ) : Promise<any> {
+        const addCustomData = ( gltf, customData ) => {
+            const glbView = new DataView( gltf );
+
+            // glb header (12 Bytes)
+            const magic = glbView.getUint32( 0, true );
+            const version = glbView.getUint32(4, true);
+            const length = glbView.getUint32(8, true);
+
+            if (magic !== 0x46546C67) {
+                throw new Error("Invalid GLB file");
+            }
+
+            // insert custom header
+            const customText = new TextEncoder().encode( customData );
+            const customChunkSize = customText.byteLength;
+            const newChunkType = 0x43555354; // "CUST" in ASCII
+
+            const newGLB = new Uint8Array( length + 8 + customChunkSize );
+            newGLB.set( new Uint8Array( gltf ), 0 );
+
+            const newView = new DataView( newGLB.buffer );
+            newView.setUint32( length, customChunkSize, true );
+            newView.setUint32( length + 4, newChunkType, true );
+            newGLB.set( customText, length + 8 );
+
+            // 새 크기 할당
+            newView.setUint32( 8, newGLB.byteLength, true );
+            return newGLB;
+        };
+
+        return new Promise( (resolve, reject ) => {
+            const exporter = new GLTFExporter();
+            const options = { binary : true };
+            exporter.parse( engine.sceneGraph, gltf => {
+                const newGLB = addCustomData( gltf, "QuasarXR-Custom-File-Data" );
+                console.log( gltf, typeof gltf );
+                FileUtil.DownloadFile( 'exported.glb', newGLB, "model/gltf-binary" );
+                resolve( true );
+            }, error => {
+
+            }, options );
+        } );
+    }
+
+    Load( url ) : Promise<any> {        
+        return new Promise( ( resolve, reject ) => {
+            this.readHeader( url ).then( header => {
+                const loader = new GLTFLoader();
+                loader.load( url, gltf => {                        
+                    if ( header ) {
+                        // load quasarxr data
+                    } else {
+                        // load normal glb
+                    }
+                    resolve( gltf );
+                } );
+            } );
+        } );
+    }
+}
+
 export default class FileUtil {
     static FileSelector( multiple : boolean = false, accept : string = "" ) {
         const f = document.createElement( 'input' );
