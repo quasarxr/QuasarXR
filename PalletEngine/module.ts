@@ -855,43 +855,47 @@ class PalletEngine extends PalletElement {
 
         // system
         EventEmitter.on( 'file-import', ( url ) => {
-            // this.loadGLTF( url, gltf => {
-            //     gltf.scene.traverse( object => {
-            //         object.userData = { category: 'user', searchable: true, raycastable: true, browsable: true };
-            //     })
-            //     this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );                
-            // } );
-            FileUtil.LoadCustomGLB( url ).then( gltf => {
+            FileUtil.GlbProxy().import( url, ( gltf, token ) => {
+                if ( token === 'quasarxr' ) {
+                    const tween = this.tweenMgr.extract( gltf.scene );
+                    console.log( tween );
+                    this.tweenMgr.import( tween );
+                }
                 gltf.scene.traverse( object => {
-                    object.userData = { category: 'user', searchable: true, raycastable: true, browsable: true };
-                })
+                    object.userData.category = 'user';
+                    object.userData.searchable = true;
+                    object.userData.raycastable = true;
+                    object.userData.browsable = true;
+                } );
                 this.sceneGraph.addObject( gltf.scene, { category: 'user', searchable: true, raycastable: true, browsable: true } );
             } );
         } );
 
-        EventEmitter.on( 'file-export', () => {    
-            console.log( '!!' );        
-            // this.exportGLTF().then( gltf => {
-            //     // change file name to title
-            //     FileUtil.DownloadFile( 'scene.glb', gltf );
-            // } );
-
-            FileUtil.SaveCustomGLB( this ).then( flag => {
-                console.log( flag );
-            } );
+        EventEmitter.on( 'file-export', () => {
+            try {
+                this.sceneGraph.users.userData.tweenData = this.tweenMgr.export();
+                FileUtil.GlbProxy().export( 'untitled.glb', this.sceneGraph.users, ( buffer ) => {
+                } );
+            } catch( ex ) {
+                console.error( ex );
+            }
         } );
 
         EventEmitter.on( 'system-storage', () => {
-            this.exportGLTF().then( gltf => {
-                const data = {
-                    url : 'api/upload',
-                    session : this.getSession(),
-                    file : gltf,
-                }
-                FileUtil.UploadFile( data, () => {
-                    console.log( 'upload complete' );
+            try {
+                FileUtil.GlbProxy().export( null, this.sceneGraph.users, ( buffer ) => {
+                    const payload = {
+                        url : 'api/upload',
+                        session : this.getSession(),
+                        file : buffer,
+                    }
+                    FileUtil.UploadFile( payload, () => {
+                        console.log( 'upload success' );
+                    } );
                 } );
-            } );
+            } catch( ex ) {
+                console.error( ex );
+            }
         } );
 
         EventEmitter.on( 'env-bg', data => { /* data : URL */

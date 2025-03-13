@@ -11,6 +11,7 @@ type AddParam = {
   searchable : boolean, // get to find function
   raycastable : boolean, // attend raycaster intersection
   browsable? : boolean,
+  recursive? : boolean,
   attach? : boolean,
 };
 

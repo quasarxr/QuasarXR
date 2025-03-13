@@ -1,4 +1,4 @@
-import { Object3D } from 'three';
+import { Object3D, Group, Scene } from 'three';
 import TWEEN from 'three/examples/jsm/libs/tween.module';
 
 interface Vector3 {
@@ -278,10 +278,26 @@ export class TweenManager {
         this.data = value;
     }
 
+    extract( target : Group | Object3D | Scene ) { // traverse node to extract tween data
+        let tweenNodes = undefined;
+        if ( target ) {
+            tweenNodes = { 'Root' : null, 'Object3D' : {} };
+            target.traverse( ( object ) => {
+                if ( object.userData.tweenData ) {
+                    tweenNodes.Root = object;
+                }
+                if ( object.userData?.tweenUID ) {
+                    tweenNodes.Object3D[ object.userData.tweenUID ] = object;
+                }
+            } );    
+            return tweenNodes;
+        }
+    }
+
     import( data ) {
         //this.data = data;
         try {
-            const tweenJSON = data?.Root?.userData?.tweens;
+            const tweenJSON = data?.Root?.userData?.tweenData;
             const json = JSON.parse( tweenJSON );
             Object.keys( json ).forEach( ( key ) => {
                 if ( data['Object3D'][ key ] ) {
@@ -307,12 +323,12 @@ export class TweenManager {
 
     export() {
         const data = {};
-        this.data.forEach( ( value, key ) => {
-            const json = value.map( ( tween ) => {
+        this.data.forEach( ( tweenData, object3d ) => {
+            const json = tweenData.map( ( tween ) => {
                 return tween.toJSON();
             } );
             
-            const id = key.userData.tweenUID;
+            const id = object3d.userData.tweenUID;
             data[ id ] = json;            
         } );
         const json = JSON.stringify( data );
