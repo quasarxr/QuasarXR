@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useFormState } from 'react-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
-import { login } from '@/app/actions/auth';
+import { login, google_login } from '@/app/actions/auth';
 import { LoginFormState } from '@/app/lib/definitions';
 import styles from '../styles.module.css';
 import { useRouter } from 'next/navigation';
@@ -66,6 +66,19 @@ const LoginForm = ({ isLogin, setIsLogin, redirect } : Props) => {
         loginRef.current.reset();
     }
 
+    const buttonStyle : React.CSSProperties = {
+        display: 'flex', 
+        cursor: 'pointer', 
+        flexDirection: 'row', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        border: '1px solid gray', 
+        padding: '3px', 
+        margin: '10px',
+        width: '100%',
+        height: '25px',
+    };
+
     return (
         <form action={formAction} className={styles.authRoot} style={formStyle} ref={loginRef}>
             <div className={styles.authBackground} onClick={ formClick }/>
@@ -104,6 +117,11 @@ const LoginForm = ({ isLogin, setIsLogin, redirect } : Props) => {
                     { state?.errors?.password && <p style={{margin: '5px'}}>{"incorrect password, put right password again"}</p> }
                 </div>
                 <button type="submit" disabled={isPending}>LOGIN</button>
+
+                <div style={buttonStyle} onClick={google_login}>
+                    <div style={{background: 'url(\"./icons/google_icon.png\")', width: '25px', height: '25px', backgroundSize: '25px 25px', userSelect: 'none'}}/>
+                    <div style={{marginLeft: '10px', userSelect: 'none'}}> Sign in with Google </div>
+                </div>
             </section>
         </form>
     );

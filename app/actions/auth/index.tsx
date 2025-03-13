@@ -61,3 +61,18 @@ export async function login( state: LoginFormState, formData : FormData ) {
 export async function logout() {
   await signOut();
 }
+
+export async function google_login() {
+  const loginState = { redirect : '/', errors : undefined };
+  try {
+    const result = await signIn( "google" );
+
+    console.log(' google login   result  : ',  result );
+
+    if ( ! result.ok ) {
+      loginState.errors = JSON.parse( result.error );
+    }
+  } catch( ex ) {
+
+  }
+}
