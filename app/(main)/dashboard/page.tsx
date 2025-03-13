@@ -21,7 +21,7 @@ export default function dashboardPage() {
 
     useEffect( () => {
         if ( session ) {
-            if ( session.user ) {
+            if ( session.user && session.user.user_id ) {
                 fetchUserContents( session?.user?.user_id ).then( data => {
                     setUserItems( data );
                 } );
