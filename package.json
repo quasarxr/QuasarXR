@@ -3,6 +3,7 @@
     "@fortawesome/fontawesome-svg-core": "^6.6.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/react-fontawesome": "^0.2.2",
+    "@googleworkspace/drive-picker-element": "^0.4.1",
     "@monaco-editor/react": "^4.6.0",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
