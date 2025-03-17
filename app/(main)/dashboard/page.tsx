@@ -7,6 +7,7 @@ import EmptyCard from '@/app//components/dashboard/empty';
 import styles from './styles.module.css';
 import { contentList } from '@/app/actions/contents';
 import { useRouter } from 'next/navigation';
+import GoogleDrivePicker from '../../components/google-drive-picker';
 
 export default function dashboardPage() {
 
@@ -34,6 +35,7 @@ export default function dashboardPage() {
     return (
         <div className={styles.mainArea}>
             <Link className={styles.customLink} href="/empty"><EmptyCard/></Link>
+            <GoogleDrivePicker></GoogleDrivePicker>
             {userItems.map( ( item, index ) => 
                 (<Card 
                     key={item.id || index} 

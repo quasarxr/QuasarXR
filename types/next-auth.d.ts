@@ -18,6 +18,7 @@ declare module "next-auth" {
             is_active?: boolean;
             is_admin?: boolean;
         } & DefaultSession["user"]
+        accessToken?: string;
     }
 }
 
@@ -28,5 +29,6 @@ declare module "next-auth/jwt" {
         role?: number;
         is_active?: boolean;
         is_admin?: boolean;
+        accessToken?: string;
     }
 }

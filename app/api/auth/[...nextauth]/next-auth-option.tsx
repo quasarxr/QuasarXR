@@ -49,9 +49,14 @@ export const authOptions : NextAuthOptions = {
         },
       }),
       GoogleProvider( {
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret:process.env.GOOGLE_CLIENT_SECRET,
-      })
+          clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+          clientSecret:process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET!,
+          authorization: {
+            params: { 
+              scope: "openid email profile https://www.googleapis.com/auth/drive.readonly"
+            }
+          }
+      } )
     ],
     session: {
       strategy: "jwt",
@@ -92,7 +97,11 @@ export const authOptions : NextAuthOptions = {
         copyVar( user, token, 'is_admin' );        
         copyVar( user, token, 'is_active' );
 
-        token.role = 1;        
+        token.role = 1;
+
+        if ( account ) {
+          token.accessToken = account.access_token; // OAuth Access Token 저장
+        }
         
         return token;
       },
@@ -103,6 +112,7 @@ export const authOptions : NextAuthOptions = {
         session.user.user_id = data.user_id;
         session.user.is_active = data.is_active;
         session.user.is_admin = data.is_admin;
+        session.accessToken = token.accessToken; // Access Token 저장
         return session;
       },
     },

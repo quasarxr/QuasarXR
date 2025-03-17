@@ -1,5 +1,5 @@
 import { SignupFormSchema, SignupFormState, LoginFormState } from '@/app/lib/definitions';
-import { redirect, useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { signIn, signOut } from 'next-auth/react';
 
 export async function signup(state: SignupFormState, formData: FormData) {
@@ -59,7 +59,11 @@ export async function login( state: LoginFormState, formData : FormData ) {
 }
 
 export async function logout() {
-  await signOut();
+  await signOut({ redirect: false }).then( () => {
+    localStorage.clear();
+    sessionStorage.clear();    
+    redirect('/');
+  });
 }
 
 export async function google_login() {
