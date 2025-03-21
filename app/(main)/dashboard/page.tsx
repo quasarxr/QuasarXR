@@ -35,7 +35,7 @@ export default function dashboardPage() {
     return (
         <div className={styles.mainArea}>
             <Link className={styles.customLink} href="/empty"><EmptyCard/></Link>
-            <GoogleDrivePicker></GoogleDrivePicker>
+            <GoogleDrivePicker show={true}></GoogleDrivePicker>
             {userItems.map( ( item, index ) => 
                 (<Card 
                     key={item.id || index} 

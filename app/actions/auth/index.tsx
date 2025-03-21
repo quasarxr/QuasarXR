@@ -61,8 +61,8 @@ export async function login( state: LoginFormState, formData : FormData ) {
 export async function logout() {
   await signOut({ redirect: false }).then( () => {
     localStorage.clear();
-    sessionStorage.clear();    
-    redirect('/');
+    sessionStorage.clear();
+    //redirect('/');
   });
 }
 

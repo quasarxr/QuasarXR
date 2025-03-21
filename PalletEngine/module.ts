@@ -47,7 +47,7 @@ import FileUtil from './utils/file';
 //import MathUtil from './utils/math';
 import TextureUtil from './utils/texture';
 import { TweenManager } from './utils/tween';
-import { AuthController } from './utils/auth';
+import { AuthController, GoogleAuthenticator } from './utils/auth';
 
 // tween
 import TWEEN from 'three/examples/jsm/libs/tween.module';
@@ -706,6 +706,7 @@ class PalletEngine extends PalletElement {
 
     // auth controller
     authController : AuthController;
+    googleAuthenticator : GoogleAuthenticator;
             
     constructor( canvas : HTMLCanvasElement, mode : string ) {
         super();
@@ -879,6 +880,50 @@ class PalletEngine extends PalletElement {
             } catch( ex ) {
                 console.error( ex );
             }
+        } );
+
+        const pickerCallback = ( url ) => {
+            console.log( 'pallet picker callback' );
+            this.sceneGraph.users.userData.tweenData = this.tweenMgr.export();
+            FileUtil.GlbProxy().export( null, this.sceneGraph.users, ( buffer ) => {
+                const metadata = {
+                    name : this.gui?.title || 'untitled',
+                    parents: [url],
+                    mimeType: 'application/octet-stream',
+                };
+                const formData = new FormData();
+                formData.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'} ) );
+                formData.append('file', buffer );
+                const payload = {
+                    url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                    headers: {
+                        method: 'POST',
+                        headers: {
+                            Authorization: `Bearer ${this.getSession()?.accessToken}`
+                        },
+                        body: formData
+                    },
+                    session : this.getSession(),
+                    file : buffer,
+                };
+                FileUtil.UploadFile( payload, () => {
+    
+                } );
+            } );
+        }
+
+        EventEmitter.on( 'google-drive', () => {
+
+            console.log( this.authController.session );
+
+            const picker = this.googleAuthenticator?.drivePicker;
+            picker.addCallback( pickerCallback );
+
+            if ( picker ) {
+                console.log('!!');
+                picker.openFolder();
+            }
+            
         } );
 
         EventEmitter.on( 'system-storage', () => {
@@ -1540,7 +1585,7 @@ type EngineCallback = {
 
 export let _module : PalletEngine = null;
 export function _engineFactory( params : EngineParameters, callback :  EngineCallback ) {
-    return new Promise( ( resolve, reject ) => {
+    return new Promise( ( resolve, reject ) => { 
         // TODO : fix 
         try {
             const canvasElements : HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
@@ -1571,4 +1616,10 @@ export function _createAuthController( session, login, logout ) {
     EventEmitter.on( 'auth-logout', () => {
         logout();
     } );
+}
+
+export function _createGoogleAuthenticator( picker ) {
+    if ( ! _module.googleAuthenticator ) {
+        _module.googleAuthenticator = new GoogleAuthenticator( picker );
+    }
 }

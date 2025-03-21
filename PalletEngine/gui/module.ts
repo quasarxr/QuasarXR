@@ -58,7 +58,7 @@ const _GuiDatas : GUIData[][]= [
     [ // system
         bakeGUIData( 'Import', 'file-import', 'button' ),
         bakeGUIData( 'Export', 'file-export', 'button' ),
-        bakeGUIData( 'Google Drive', 'file-drive', 'button' ),
+        bakeGUIData( 'Google Drive', 'google-drive', 'button' ),
         bakeGUIData( 'Storage', 'system-storage', 'button', null, { disabled: !isDev } ), // only development test
     ],[ // creation
         bakeGUIData( 'Box', 'create-box', 'button' ),
@@ -351,9 +351,12 @@ export default class PalletGUI {
 
     deploySystem( page : TabPageApi ) {
 
+        const titleApi = page.addBlade( { view : 'text', parse: (v) => String(v), value: 'untitled' } ) as TextBladeApi<string>;
+        this.guiMap.set( 'title', { uid: 'title', pi: titleApi, events: [] } );
+        
         const authApi = page.addBlade( { view: 'authenticator' } ) as AuthenticatorApi;
         this.guiMap.set( 'authenticator', { uid: 'authenticator', pi: authApi, events: [] } );
-        
+
         const playBtn = page.addButton( { title: 'Play' } );
         this.connectAction( playBtn, 'editor-play', false );
 
@@ -621,6 +624,10 @@ export default class PalletGUI {
         if ( cb ) cb();
     }
 
+    actionGoogleDrive( cb : Function ) {
+        if ( cb ) cb();
+    }
+
     actionMatDiffuse( cb : Function ) {
         fileSelector( cb );
     }
@@ -721,5 +728,9 @@ export default class PalletGUI {
 
     get authenticator() : AuthenticatorApi {
         return this.guiMap?.get('authenticator').pi as AuthenticatorApi;
+    }
+
+    get title() : string {
+        return (this.guiMap?.get('title').pi as TextBladeApi<string>).value;
     }
 }

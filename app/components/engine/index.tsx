@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { logout } from '@/app/actions/auth';
 import LoginForm from '@/app/components/login';
+import GoogleDrivePicker from '@/app/components/google-drive-picker';
 
 export interface PalletComponentRef {
     /** */
@@ -43,6 +44,7 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
     const canvasRef = useRef(null);
     const loadingRef = useRef(null);
     const sessionRef = useRef(null);
+    const pickerRef = useRef(null);
     const { data : session } = useSession();
 
     const style : CSSProperties = { display: 'inline-block', position: 'relative', width: size ? size.width : 'inherit', height: size ? size.height : 'inherit', };
@@ -59,7 +61,7 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
             callback();
             engineInstance.updateSession( session );
         }
-    }
+    };
 
     const loadGLB = ( dataURL ) => {
         if ( engineInstance && dataURL !== null && dataURL !== '' ) {
@@ -67,7 +69,7 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
                 if ( onload ) onload( gltf );
             }, true );
         }
-    }
+    };
 
     // TODO : refactoring here
     useEffect( () => {
@@ -114,10 +116,18 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
         updateEngineSession( session, () => {} );
     }, [ session, engineInstance ] );
 
+    useEffect( () => {
+        if ( _Module && pickerRef.current ) {
+            console.log( 'create GoogleAuth controller ') ;
+            _Module._createGoogleAuthenticator( pickerRef.current );
+        }
+    }, [ _Module, pickerRef.current ] );
+
     return (
         <div id='canvas-container' ref={containerRef} style={style}>
             { mode === 'editor' && <LoginForm isLogin={showLogin} setIsLogin={setShowLogin} redirect={currentPath}></LoginForm> }
             <LoadingComponent ref={loadingRef} style={{zIndex: 2}}/>
+            <GoogleDrivePicker ref={pickerRef} show={false}></GoogleDrivePicker>
             <canvas className="view" ref={canvasRef} style={{width: "100%", height: "100%" } }></canvas>
         </div>
     )

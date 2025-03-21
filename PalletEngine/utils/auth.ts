@@ -15,7 +15,6 @@ interface AuthParams {
     logics : AuthLogics;
 }
 
-
 export class AuthController {
 
     session : SessionDescriptor | null;
@@ -36,5 +35,16 @@ export class AuthController {
 
     logout() {
         this.logics.logout();
+    }
+}
+
+export class GoogleAuthenticator {
+
+    accessToken : string | null;
+    drivePicker : any | null;
+
+    constructor( picker ) {
+        this.accessToken = null;
+        this.drivePicker = picker;
     }
 }

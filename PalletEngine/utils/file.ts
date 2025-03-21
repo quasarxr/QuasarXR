@@ -6,6 +6,8 @@ interface UploadParam {
     url? : string,
     session : any,
     file : any,
+    headers? : any,
+    body? : any,
 }
 
 type exportOption = {
@@ -173,9 +175,10 @@ export default class FileUtil {
     }
 
     static UploadFile( data : UploadParam, callback : ( response : any ) => void ) {
-        fetch( 'api/upload', {
+        fetch( data.url, {
             method: 'POST',
-            body: JSON.stringify( { fileName : 'scene.glb', fileData: data.file, userName : data.session.user.email, userId : data.session.user.user_id } ),
+            headers: data.headers || undefined,
+            body: data.body || JSON.stringify( { fileName : 'scene.glb', fileData: data.file, userName : data.session.user.email, userId : data.session.user.user_id } ),
         } ).then( response => {
             return response.json();
         } ).then( data => {
