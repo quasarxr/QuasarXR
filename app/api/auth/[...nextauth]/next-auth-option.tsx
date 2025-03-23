@@ -99,7 +99,7 @@ export const authOptions : NextAuthOptions = {
 
         token.role = 1;
 
-        if ( account ) {
+        if ( account && account.access_token ) {
           token.accessToken = account.access_token; // OAuth Access Token 저장
         }
         

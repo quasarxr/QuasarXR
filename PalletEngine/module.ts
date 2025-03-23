@@ -917,7 +917,7 @@ class PalletEngine extends PalletElement {
             console.log( this.authController.session );
 
             const picker = this.googleAuthenticator?.drivePicker;
-            picker.addCallback( pickerCallback );
+            //picker.addCallback( pickerCallback );
 
             if ( picker ) {
                 console.log('!!');
