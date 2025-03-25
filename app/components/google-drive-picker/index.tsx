@@ -1,9 +1,18 @@
 'use client'
 import { useEffect, useState, useRef, forwardRef, useImperativeHandle  } from 'react';
 import { useSession } from 'next-auth/react';
-import { useAuthStore } from '@/store/authStore';
 import styles from './styles.module.css';
 import { google_login } from '@/app/actions/auth';
+import { useAuthStore } from '@/store/authStore';
+import { shallow } from "zustand/shallow";
+
+type GoogleClientData = { 
+    access_token : string,
+    token_type : string, 
+    expires_in : number, 
+    prompt : string, 
+    scope : string,
+}
 
 const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { show : boolean }, ref ) {
     const [pickerInited, setPickerInited] = useState(false);
@@ -16,11 +25,13 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
     const pickerCallbacks = [];
 
     const accessToken = useAuthStore( state => state.accessToken );
+    const expireAt = Number.parseInt( useAuthStore( state => state.expireAt ) );
+    console.log( 'token expire time : ', expireAt, Date.now(), expireAt );
 
     const handleAuth = () => {
         console.log( 'call handleAuth' );
+        useAuthStore.getState().removeAccessToken();
         return new Promise( ( resolve, reject ) => {
-
             if ( !tokenClientRef.current ) {
                 console.error( "OAuth 클라이언트가 초기화되지 않았습니다.");
                 reject("OAuth 클라이언트 미초기화");
@@ -28,33 +39,29 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
             }
 
             tokenClientRef.current.callback = ( response ) => {
-                console.log( 'token client ref callback ', response );
-                const token = response?.access_token;
-                console.log( response, token );
-                const error = response?.error;
-                if (error) {
-                    console.error("OAuth 인증 실패:", error);
-                    reject(error);
-                    return;
-                }
+                const res : GoogleClientData = response;
+                console.log( res );
 
-                if ( token ) {
-                    console.log("OAuth 인증 성공! Access Token:", token);
-                    useAuthStore.getState().setAccessToken( token ); // 전역 범위 토큰 저장    
+                if ( res.access_token ) {
+                    console.log("OAuth 인증 성공! Access Token:", res.access_token);
+                    const newExpireAt = Date.now() + res.expires_in; // 만료 시간 계산
+                    console.log( newExpireAt, Date.now() , newExpireAt - Date.now() );
+                    // 전역 범위 토큰 저장
+                    useAuthStore.getState().setAccessToken( res.access_token );
+                    useAuthStore.getState().setTokenExpireAt( `${newExpireAt}` );
+                    useAuthStore.getState().setTokenType( res.token_type );
+
                     if ( session ) {
                         // 세션 업데이트
-                        session.accessToken = token;
+                        session.accessToken = res.access_token;
                     }
                     
                     window.location.reload();
-                    resolve(token);
+                    resolve(res.access_token);
                     console.log("handleAuth 내부 resolve 호출됨");
                 }
-
             };
-
             tokenClientRef.current.requestAccessToken(); 
-
         } );
     };
 
@@ -101,9 +108,6 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
         };
         
         loadGoogleAPIs();
-
-        return () => {
-        }
     }, [ session, accessToken ] );
 
     const onButtonClicked = () => {
@@ -144,9 +148,9 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
             if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
                 const doc = data[google.picker.Response.DOCUMENTS][0];
                 url = doc[google.picker.Document.URL];
+                setPickFolder( url );
+                pickerCallbacks.forEach( func => func( url ) );
             }
-            setPickFolder( url );
-            pickerCallbacks.forEach( func => func( url ) );
         }
 
         const view = new google.picker.DocsView( google.picker.ViewId.FOLDERS );
@@ -162,28 +166,22 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
         picker.setVisible(true);
     };
 
-    const openFolderImplement = () => {
-        
-        if ( !accessToken ) {
-            console.log( 'externalPickerHandle OAuth 토큰 없음 : Picker disabled', accessToken );
-            try {
-                handleAuth().then( token => {        
-                    console.log( 'handleAuth resolved ', token );
-                    console.log( 'OAuth 인증 완료! Picker 실행' );
-                });
-            } catch( error ) {
-                console.error( "OAuth 인증 실패 : ", error );
-                return;
-            }
-        } else {                    
-            externalPickerHandle( accessToken );
-        }
-    }
-
     useImperativeHandle( ref, () => { 
         return {
-             async openFolder() {
-                openFolderImplement();
+             openFolder() {
+                const expired = (expireAt && accessToken) ? expireAt > Date.now() : true;
+                console.log( 'openFolder', expireAt, Date.now(), accessToken );
+                if ( expired ) {
+                    console.log( `externalPickerHandle OAuth 토큰 없음 : Picker disabled, accessToken : ${accessToken} / expireTime : ${expireAt}` );
+                    try {
+                        handleAuth();
+                    } catch( error ) {
+                        console.error( "OAuth 인증 실패 : ", error );
+                        return;
+                    }
+                } else {                    
+                    externalPickerHandle( accessToken );
+                }
             },
             addCallback( func ) {
                 if ( ! pickerCallbacks.includes( func ) ) {
@@ -195,7 +193,7 @@ const GoogleDrivePicker = forwardRef( function GoogleDrivePicker( { show } : { s
                 return pickFolder;
             },
         }
-    }, [ pickerCallbacks, pickFolder, tokenClientRef, accessToken ] );
+    }, [ pickerCallbacks, pickFolder, tokenClientRef, accessToken, expireAt ] );
     
     return (
         <div ref={pickerRef} style={{ display: show ? 'block' : 'none' }}>

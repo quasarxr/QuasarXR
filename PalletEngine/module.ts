@@ -883,7 +883,7 @@ class PalletEngine extends PalletElement {
         } );
 
         const pickerCallback = ( url ) => {
-            console.log( 'pallet picker callback' );
+            console.log( 'pallet picker callback', url );
             this.sceneGraph.users.userData.tweenData = this.tweenMgr.export();
             FileUtil.GlbProxy().export( null, this.sceneGraph.users, ( buffer ) => {
                 const metadata = {
@@ -906,21 +906,18 @@ class PalletEngine extends PalletElement {
                     session : this.getSession(),
                     file : buffer,
                 };
-                FileUtil.UploadFile( payload, () => {
+                // FileUtil.UploadFile( payload, () => {
     
-                } );
+                // } );
             } );
         }
 
         EventEmitter.on( 'google-drive', () => {
 
-            console.log( this.authController.session );
-
             const picker = this.googleAuthenticator?.drivePicker;
-            //picker.addCallback( pickerCallback );
+            picker.addCallback( pickerCallback );
 
             if ( picker ) {
-                console.log('!!');
                 picker.openFolder();
             }
             
