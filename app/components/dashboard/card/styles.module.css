@@ -44,4 +44,5 @@
 .customLink {
     color: inherit;
     text-decoration: none;
+    width: fit-content;
 }

@@ -14,7 +14,7 @@ interface Props {
     user_id? : string;
     content_id? : string;
 }
-export default function Card( props : Props) {
+export default function Card(props : Props) {
     const assetRoute = `/user/${props.user_id}/${props.content_id}`;
     return (
     <Link className={styles.customLink} href={assetRoute}>
