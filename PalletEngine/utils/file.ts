@@ -4,8 +4,8 @@ import { PalletScene } from '../wrapper';
 
 interface UploadParam {
     url? : string,
-    session : any,
-    file : any,
+    session? : any,
+    file? : any,
     headers? : any,
     body? : any,
 }
@@ -177,15 +177,32 @@ export default class FileUtil {
     static UploadFile( data : UploadParam, callback : ( response : any ) => void ) {
         fetch( data.url, {
             method: 'POST',
-            headers: data.headers || undefined,
-            body: data.body || JSON.stringify( { fileName : 'scene.glb', fileData: data.file, userName : data.session.user.email, userId : data.session.user.user_id } ),
+            headers: data.headers ?? null,
+            body: data.body ?? JSON.stringify( { fileName : 'scene.glb', fileData: data.file, userName : data.session.user.email, userId : data.session.user.user_id } ),
         } ).then( response => {
-            return response.json();
-        } ).then( data => {
-            callback( data );
+            response.json().then( data => callback( data ) );
         } ).catch( error => {
             console.error( error );
         } );
+    }
+
+    static async GoogleDriveUploadTest( formData, token, callback : ( response : any ) => void ) {
+        const response = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+            {
+                method: 'POST',
+                headers: { 
+                    Authorization: `Bearer ${token}` 
+                },
+                body: formData
+            }
+        );
+        const res = await response.json();
+        if ( res.id ) {
+            alert('File uploaded successfully!');
+        } else {
+            alert('Upload failed');
+        }
     }
     
     static FileExtension( path ) {

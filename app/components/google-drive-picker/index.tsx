@@ -39,7 +39,7 @@ const GoogleDrivePicker = forwardRef<GoogleDrivePickerRef, GoogleDrivePickerProp
     // Refs
     const tokenClientRef = useRef<any>(null);
     const pickerRef = useRef(null);
-    const pickerCallbacksRef = useRef<Array<(url: string) => void>>([]);
+    const pickerCallbacksRef = useRef<Array<(url: string, token: string) => void>>([]);
 
     // Session and authentication
     const { data: session } = useSession();
@@ -144,16 +144,48 @@ const GoogleDrivePicker = forwardRef<GoogleDrivePickerRef, GoogleDrivePickerProp
       const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
       view.setSelectFolderEnabled(true);
 
+      const uploadToGoogleDrive = async ( folderId ) => {
+        try {
+          const metadata = {
+            name : 'untitled.glb',
+            parents: [folderId]
+          };
+          const formData = new FormData();
+          formData.append('metadata', new Blob( [JSON.stringify(metadata)], { type: "application/json" }));
+          formData.append('file', new Blob( [ "0," ], { type: "application/octet-stream" }));
+
+          const response = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+            {
+              method: 'POST',
+              headers: { 
+                Authorization: `Bearer ${accessToken}` 
+              },
+              body: formData
+            }
+          );
+          const res = await response.json();
+          if ( res.id ) {
+            alert('File uploaded successfully!');
+          } else {
+            alert('Upload failed');
+          }
+        } catch(error) {
+          console.error('Upload error:', error);
+          alert('Upload failed');
+        }
+      }
+
       // Picker callback
       const pickerCallback = (data: any) => {
-        if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
-          const doc = data[google.picker.Response.DOCUMENTS][0];
-          const url = doc[google.picker.Document.URL];
+        if (data.action === google.picker.Action.PICKED) {
+          const folder = data.docs[0];
           
-          setPickFolder(url);
+          setPickFolder(folder.id);
           
           // Trigger all registered callbacks
-          pickerCallbacksRef.current.forEach(func => func(url));
+          pickerCallbacksRef.current.forEach(func => func(folder.id, accessToken));
+          //uploadToGoogleDrive( folder.id );
         }
       };
 

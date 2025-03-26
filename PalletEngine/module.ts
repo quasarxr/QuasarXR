@@ -882,39 +882,66 @@ class PalletEngine extends PalletElement {
             }
         } );
 
-        const pickerCallback = ( url ) => {
-            console.log( 'pallet picker callback', url );
+        const pickerCallback = ( folderId, token ) => {
             this.sceneGraph.users.userData.tweenData = this.tweenMgr.export();
-            FileUtil.GlbProxy().export( null, this.sceneGraph.users, ( buffer ) => {
+            FileUtil.GlbProxy().export( null, this.sceneGraph.users, async ( buffer ) => {
                 const metadata = {
-                    name : this.gui?.title || 'untitled',
-                    parents: [url],
-                    mimeType: 'application/octet-stream',
+                    name : `${this.gui?.title}.glb`,
+                    parents: [folderId]
                 };
                 const formData = new FormData();
-                formData.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'} ) );
-                formData.append('file', buffer );
+                formData.append('metadata', new Blob( [JSON.stringify(metadata)], { type: "application/json" }));
+                formData.append('file', new Blob( [buffer], { type: "application/octet-stream" }));
+
                 const payload = {
                     url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                    headers: {
-                        method: 'POST',
-                        headers: {
-                            Authorization: `Bearer ${this.getSession()?.accessToken}`
-                        },
-                        body: formData
-                    },
-                    session : this.getSession(),
-                    file : buffer,
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData
                 };
-                // FileUtil.UploadFile( payload, () => {
-    
-                // } );
+                FileUtil.UploadFile( payload, ( json ) => {
+                } );
             } );
+        }
+        
+        const uploadToGoogleDrive = async ( folderId, token ) => {
+            try {
+                const metadata = {
+                    name : `${this.gui?.title}.glb`,
+                    parents: [folderId]
+                };
+                FileUtil.GlbProxy().export( null, this.sceneGraph.users, async ( buffer ) => {
+                    const formData = new FormData();
+                    formData.append('metadata', new Blob( [JSON.stringify(metadata)], { type: "application/json" }));
+                    formData.append('file', new Blob( [ buffer ], { type: "application/octet-stream" }));
+
+                    const response = await fetch(
+                        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                        {
+                            method: 'POST',
+                            headers: { 
+                                Authorization: `Bearer ${token}` 
+                            },
+                            body: formData
+                        }
+                    );
+                    const res = await response.json();
+                    if ( res.id ) {
+                        alert('File uploaded successfully!');
+                    } else {
+                        alert('Upload failed');
+                    }
+                } );
+                
+            } catch(error) {
+                console.error('Upload error:', error);
+                alert('Upload failed');
+            }
         }
 
         EventEmitter.on( 'google-drive', () => {
 
             const picker = this.googleAuthenticator?.drivePicker;
+            //picker.addCallback( uploadToGoogleDrive );
             picker.addCallback( pickerCallback );
 
             if ( picker ) {
