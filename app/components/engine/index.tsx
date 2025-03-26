@@ -7,6 +7,8 @@ import { useSession } from 'next-auth/react';
 import { logout } from '@/app/actions/auth';
 import LoginForm from '@/app/components/login';
 import GoogleDrivePicker from '@/app/components/google-drive-picker';
+import ScreenMessage from './screen-msg';
+
 
 export interface PalletComponentRef {
     /** */
@@ -45,6 +47,7 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
     const loadingRef = useRef(null);
     const sessionRef = useRef(null);
     const pickerRef = useRef(null);
+    const screenMsgRef = useRef(null);
     const { data : session } = useSession();
 
     const style : CSSProperties = { display: 'inline-block', position: 'relative', width: size ? size.width : 'inherit', height: size ? size.height : 'inherit', };
@@ -89,6 +92,11 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
                     //engine.resizeRenderer( { canvas : canvasRef.current } );
                     
                     pallet._createAuthController( sessionRef.current, loginCallback, logoutCallback );
+                    pallet._connectScreenMessageFunc( ( text ) => {
+                        if ( screenMsgRef.current ) {
+                            screenMsgRef.current.showMsg( text );
+                        }
+                    } );
                 } );
             } ).finally( () => {
                 _PalletPromise = null;
@@ -127,6 +135,7 @@ const PalletComponent = forwardRef<PalletComponentRef, Props>( ( { url = undefin
         <div id='canvas-container' ref={containerRef} style={style}>
             { mode === 'editor' && <LoginForm isLogin={showLogin} setIsLogin={setShowLogin} redirect={currentPath}></LoginForm> }
             <LoadingComponent ref={loadingRef} style={{zIndex: 2}}/>
+            <ScreenMessage ref={screenMsgRef} show={false} message={""}></ScreenMessage>
             <GoogleDrivePicker ref={pickerRef} show={false}></GoogleDrivePicker>
             <canvas className="view" ref={canvasRef} style={{width: "100%", height: "100%" } }></canvas>
         </div>

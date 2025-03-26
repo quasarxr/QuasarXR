@@ -1,0 +1,20 @@
+.msg_outer {
+    width: 400px;
+    height: 50px;
+    background-color: #235380;
+    opacity: 1;
+    transition: opacity 1s ease-in-out;
+    position: absolute;
+    align-content: center;
+    right: 10px;
+    bottom: 10px;
+}
+
+.msg_text {
+    font-size: 20px;
+    color: rgb(218, 218, 218);
+    text-align: center;
+    vertical-align: middle;
+    display: flex;
+    justify-content:center;
+}

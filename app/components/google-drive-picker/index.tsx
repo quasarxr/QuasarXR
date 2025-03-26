@@ -185,7 +185,6 @@ const GoogleDrivePicker = forwardRef<GoogleDrivePickerRef, GoogleDrivePickerProp
           
           // Trigger all registered callbacks
           pickerCallbacksRef.current.forEach(func => func(folder.id, accessToken));
-          //uploadToGoogleDrive( folder.id );
         }
       };
 

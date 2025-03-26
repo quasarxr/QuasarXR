@@ -882,7 +882,7 @@ class PalletEngine extends PalletElement {
             }
         } );
 
-        const pickerCallback = ( folderId, token ) => {
+        const googleDriveUpload = ( folderId, token ) => {
             this.sceneGraph.users.userData.tweenData = this.tweenMgr.export();
             FileUtil.GlbProxy().export( null, this.sceneGraph.users, async ( buffer ) => {
                 const metadata = {
@@ -899,55 +899,18 @@ class PalletEngine extends PalletElement {
                     body: formData
                 };
                 FileUtil.UploadFile( payload, ( json ) => {
+                    console.log( 'upload successfully : ', json );
+                    EventEmitter.emit( 'send-screen-msg', 'Upload Successfully' );
                 } );
             } );
-        }
-        
-        const uploadToGoogleDrive = async ( folderId, token ) => {
-            try {
-                const metadata = {
-                    name : `${this.gui?.title}.glb`,
-                    parents: [folderId]
-                };
-                FileUtil.GlbProxy().export( null, this.sceneGraph.users, async ( buffer ) => {
-                    const formData = new FormData();
-                    formData.append('metadata', new Blob( [JSON.stringify(metadata)], { type: "application/json" }));
-                    formData.append('file', new Blob( [ buffer ], { type: "application/octet-stream" }));
-
-                    const response = await fetch(
-                        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                        {
-                            method: 'POST',
-                            headers: { 
-                                Authorization: `Bearer ${token}` 
-                            },
-                            body: formData
-                        }
-                    );
-                    const res = await response.json();
-                    if ( res.id ) {
-                        alert('File uploaded successfully!');
-                    } else {
-                        alert('Upload failed');
-                    }
-                } );
-                
-            } catch(error) {
-                console.error('Upload error:', error);
-                alert('Upload failed');
-            }
-        }
+        };
 
         EventEmitter.on( 'google-drive', () => {
-
             const picker = this.googleAuthenticator?.drivePicker;
-            //picker.addCallback( uploadToGoogleDrive );
-            picker.addCallback( pickerCallback );
-
             if ( picker ) {
+                picker.addCallback( googleDriveUpload );
                 picker.openFolder();
-            }
-            
+            }            
         } );
 
         EventEmitter.on( 'system-storage', () => {
@@ -1646,4 +1609,10 @@ export function _createGoogleAuthenticator( picker ) {
     if ( ! _module.googleAuthenticator ) {
         _module.googleAuthenticator = new GoogleAuthenticator( picker );
     }
+}
+
+export function _connectScreenMessageFunc( func ) {
+    EventEmitter.on( 'send-screen-msg', text => {
+        func( text );
+    } );
 }
