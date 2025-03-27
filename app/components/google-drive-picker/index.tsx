@@ -29,6 +29,17 @@ interface GoogleDrivePickerRef {
   getPickFolder: () => string | null;
 }
 
+// 빌드시 참조 오류 > 별도 타입 선언
+declare global {
+  interface Window {
+    gapi: any;
+    google: any;
+  }
+
+  const gapi: any;
+  const google: any;
+}
+
 const GoogleDrivePicker = forwardRef<GoogleDrivePickerRef, GoogleDrivePickerProps>(
   function GoogleDrivePicker({ show }, ref) {
     // State management
