@@ -120,7 +120,7 @@ const GoogleDrivePicker = forwardRef<GoogleDrivePickerRef, GoogleDrivePickerProp
         scriptGis.onload = () => {
           // Initialize OAuth client
           tokenClientRef.current = google.accounts.oauth2.initTokenClient({
-            client_id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_PICKER || '',
+            client_id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_PICKER,
             scope: 'https://www.googleapis.com/auth/drive.file',
             callback: (response: GoogleClientData) => {
               try {
