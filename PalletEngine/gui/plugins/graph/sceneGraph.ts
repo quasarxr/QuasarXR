@@ -89,7 +89,7 @@ interface ViewConfig {
 
 const _className = ClassName('scene-graph');
 
-class GraphItem extends HTMLDivElement {
+class GraphItem extends HTMLElement {
     
     document : Document;
 
@@ -221,7 +221,7 @@ class GraphItem extends HTMLDivElement {
     }
 }
 
-customElements.define('scenegrpah-item', GraphItem, { extends: 'div' } );
+customElements.define('scenegrpah-item', GraphItem );
 
 export class SceneGraphView implements View {
     private document : Document;
